@@ -1,18 +1,15 @@
-// Consulta e serialização de leads.
-//
-// Política de dados (LGPD): componentes/actions só podem mandar ao cliente o
-// resultado de toPreview() — sem CNPJ, endereço, telefone ou e-mail — a menos
-// que exista LeadUnlock do usuário logado (aí vale toFull()). O export CSV e o
-// painel admin usam toFull() atrás de requireAdmin.
+// Filtros e rótulos da fila de prospecção. Ferramenta interna: a equipe vê os
+// dados completos dos estabelecimentos (dados públicos de PJ da RFB — LGPD ok
+// para prospecção B2B; manter o canal de remoção documentado no README).
 
-import type { Business, CnaeCategory, Prisma } from "@prisma/client";
-import { groupLabel } from "@/lib/cnae";
+import type { Business, Prisma } from "@prisma/client";
 
 export type LeadFilters = {
   bairro?: string;
   group?: string;
-  presence?: string; // PresenceClass ou "" (todos os verificados)
+  presence?: string;
   minScore?: number;
+  q?: string; // busca por nome
 };
 
 export const PRESENCE_LABEL: Record<string, string> = {
@@ -21,6 +18,14 @@ export const PRESENCE_LABEL: Record<string, string> = {
   SOCIAL_ONLY: "Só rede social",
   AGGREGATOR_ONLY: "Só agregador",
   HAS_SITE: "Tem site",
+};
+
+export const STATUS_LABEL: Record<string, string> = {
+  NOVO: "Novo",
+  CONTATADO: "Contatado",
+  NEGOCIANDO: "Negociando",
+  FECHADO: "Fechado",
+  DESCARTADO: "Descartado",
 };
 
 const PRESENCE_VALUES = new Set(Object.keys(PRESENCE_LABEL));
@@ -34,65 +39,21 @@ export function buildLeadWhere(f: LeadFilters): Prisma.BusinessWhereInput {
     where.presenceClass = f.presence as Business["presenceClass"];
   }
   if (f.minScore) where.score = { gte: f.minScore };
+  if (f.q) where.displayName = { contains: f.q, mode: "insensitive" };
   return where;
 }
 
-/** "Padaria Estrela da Gávea" -> "Padaria E██████ ██ █████" (1º token visível). */
-export function maskName(displayName: string): string {
-  const name = displayName.trim();
-  if (!name) return "█████";
-  const tokens = name.split(/\s+/);
-  if (tokens.length === 1) {
-    return name.slice(0, 2) + "█".repeat(Math.max(name.length - 2, 3));
-  }
-  const rest = tokens
-    .slice(1)
-    .map((t, i) => (i === 0 ? t.charAt(0) + "█".repeat(Math.max(t.length - 1, 2)) : "█".repeat(t.length)))
-    .join(" ");
-  return `${tokens[0]} ${rest}`;
+/** Link de WhatsApp para um telefone brasileiro (ddd+numero, só dígitos). */
+export function whatsappUrl(phone: string): string | null {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 10) return null; // fixo sem DDD etc.
+  return `https://wa.me/55${digits}`;
 }
 
-type BusinessWithCnae = Business & { cnae: CnaeCategory };
-
-/** Dados liberados SEM unlock (nunca inclui contato/CNPJ/endereço completo). */
-export function toPreview(b: BusinessWithCnae, unlockCount: number) {
-  return {
-    id: b.id,
-    maskedName: maskName(b.displayName),
-    category: b.cnae.label,
-    group: b.cnae.group,
-    groupLabel: groupLabel(b.cnae.group),
-    bairro: b.bairro,
-    presenceClass: b.presenceClass,
-    presenceLabel: PRESENCE_LABEL[b.presenceClass] ?? b.presenceClass,
-    score: b.score,
-    hasPhone: Boolean(b.phone1 || b.phone2),
-    hasEmail: Boolean(b.email),
-    openedYear: b.openedAt ? b.openedAt.getUTCFullYear() : null,
-    porte: b.porte,
-    unlockCount,
-    dataRef: b.ingestRef,
-  };
+/** Formata "21999998888" -> "(21) 99999-8888" para exibição. */
+export function formatPhone(phone: string): string {
+  const d = phone.replace(/\D/g, "");
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return phone;
 }
-
-/** Dados completos — só após unlock (ou admin). */
-export function toFull(b: BusinessWithCnae, unlockCount: number) {
-  return {
-    ...toPreview(b, unlockCount),
-    displayName: b.displayName,
-    razaoSocial: b.razaoSocial,
-    nomeFantasia: b.nomeFantasia,
-    cnpj: b.cnpj,
-    street: b.street,
-    cep: b.cep,
-    phone1: b.phone1,
-    phone2: b.phone2,
-    email: b.email,
-    websiteUrl: b.websiteUrl,
-    socialUrl: b.socialUrl,
-    evidence: b.presenceEvidence,
-  };
-}
-
-export type LeadPreview = ReturnType<typeof toPreview>;
-export type LeadFull = ReturnType<typeof toFull>;

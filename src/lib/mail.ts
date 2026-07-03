@@ -39,15 +39,15 @@ function shell(title: string, body: string): string {
   </div>`;
 }
 
-export async function sendWelcome(to: string, name: string, bonusCredits: number) {
+export async function sendWelcome(to: string, name: string) {
   await send({
     to,
-    subject: "Bem-vindo ao Sites Rio 🎉",
+    subject: "Sua conta no Sites Rio 🎉",
     html: shell(
       "Conta criada!",
       `<p>Olá, <strong>${name}</strong>!</p>
-       <p>Sua conta está pronta e você ganhou <strong>${bonusCredits} créditos grátis</strong>
-       para desbloquear seus primeiros leads.</p>`
+       <p>Sua conta na ferramenta de prospecção Sites Rio está pronta.
+       Use o e-mail e a senha que você recebeu para entrar.</p>`
     ),
   });
 }
@@ -69,15 +69,3 @@ export async function sendPasswordReset(to: string, name: string, url: string) {
   });
 }
 
-export async function sendCreditsAdded(to: string, name: string, amount: number, balance: number) {
-  await send({
-    to,
-    subject: "Créditos adicionados — Sites Rio",
-    html: shell(
-      "Créditos na conta 💰",
-      `<p>Olá, <strong>${name}</strong>!</p>
-       <p>Adicionamos <strong>${amount} créditos</strong> à sua conta.
-       Seu saldo atual é de <strong>${balance} créditos</strong>.</p>`
-    ),
-  });
-}

@@ -12,7 +12,7 @@ datasource db {
 }
 
 enum Role {
-  DEV
+  MEMBER
   ADMIN
 }
 
@@ -37,13 +37,6 @@ enum LeadStatus {
   DESCARTADO
 }
 
-enum CreditReason {
-  SIGNUP_BONUS
-  ADMIN_GRANT
-  UNLOCK
-  ADJUSTMENT
-}
-
 enum RunKind {
   RFB_IMPORT
   ENRICHMENT
@@ -55,20 +48,17 @@ enum RunStatus {
   FAILED
 }
 
-// Conta de um desenvolvedor (ou do admin). Login por e-mail.
+// Conta de um membro da equipe de vendas (criada pelo admin — sem auto-cadastro).
 model User {
-  id              String       @id @default(cuid())
-  email           String       @unique // sempre lowercase
-  name            String
-  passwordHash    String
-  role            Role         @default(DEV)
-  status          UserStatus   @default(ACTIVE)
-  creditBalance   Int          @default(0) // cache — o ledger é a fonte da verdade
-  emailVerifiedAt DateTime?
-  createdAt       DateTime     @default(now())
-  ledger          CreditLedger[]
-  unlocks         LeadUnlock[]
-  resetTokens     PasswordResetToken[]
+  id           String       @id @default(cuid())
+  email        String       @unique // sempre lowercase
+  name         String
+  passwordHash String
+  role         Role         @default(MEMBER)
+  status       UserStatus   @default(ACTIVE)
+  createdAt    DateTime     @default(now())
+  prospections Prospection[]
+  resetTokens  PasswordResetToken[]
 }
 
 model PasswordResetToken {
@@ -129,7 +119,7 @@ model Business {
   ingestRef         String // dump de origem, ex "2026-06"
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
-  unlocks           LeadUnlock[]
+  prospection       Prospection?
 
   @@index([presenceClass, score(sort: Desc)]) // query principal do dashboard
   @@index([bairro])
@@ -138,36 +128,20 @@ model Business {
   @@index([cnpjBasico]) // fase B do import
 }
 
-// Extrato de créditos, append-only: nunca UPDATE/DELETE em linhas existentes.
-model CreditLedger {
-  id        String       @id @default(cuid())
-  userId    String
-  user      User         @relation(fields: [userId], references: [id])
-  delta     Int // +N compra/bônus, -1 unlock
-  reason    CreditReason
-  refId     String? // unlockId quando UNLOCK
-  note      String? // ex "Pix 15/07 R$50"
-  createdBy String? // id do admin em ADMIN_GRANT
-  createdAt DateTime     @default(now())
+// Registro do CRM de prospecção: no máximo UM por estabelecimento (compartilhado
+// pela equipe). Sem registro = lead "novo"/não trabalhado.
+model Prospection {
+  id          String     @id @default(cuid())
+  businessId  String     @unique
+  business    Business   @relation(fields: [businessId], references: [id])
+  status      LeadStatus @default(CONTATADO)
+  notes       String     @default("")
+  updatedById String?
+  updatedBy   User?      @relation(fields: [updatedById], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
-  @@index([userId, createdAt])
-}
-
-// Lead desbloqueado por um dev; também é o registro do mini-CRM.
-model LeadUnlock {
-  id         String     @id @default(cuid())
-  userId     String
-  user       User       @relation(fields: [userId], references: [id])
-  businessId String
-  business   Business   @relation(fields: [businessId], references: [id])
-  status     LeadStatus @default(NOVO)
-  notes      String     @default("")
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-
-  @@unique([userId, businessId]) // arbitra corrida dupla e dá idempotência
-  @@index([businessId]) // contador "N devs já desbloquearam"
-  @@index([userId, status]) // Meus Leads
+  @@index([status, updatedAt])
 }
 
 // Execuções dos scripts de ingestão/enriquecimento (checkpoint + auditoria).

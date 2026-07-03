@@ -73,10 +73,7 @@ export default async function LoginPage({
         )}
         {reset && <p className="ok">Senha alterada! Entre com a nova senha.</p>}
         {cadastro && <p className="ok">Conta criada! Entre com seu e-mail e senha.</p>}
-        <p style={{ marginTop: 12, marginBottom: 4, textAlign: "center" }}>
-          <Link href="/cadastro">Não tem conta? Cadastre-se grátis</Link>
-        </p>
-        <p style={{ marginTop: 0, marginBottom: 0, textAlign: "center" }}>
+        <p style={{ marginTop: 12, marginBottom: 0, textAlign: "center" }}>
           <Link href="/esqueci">Esqueci minha senha</Link>
         </p>
       </form>
