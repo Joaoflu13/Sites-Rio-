@@ -1,0 +1,18 @@
+# dependências e build
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# segredos
+.env
+.env.local
+.env*.local
+
+# dumps da Receita Federal (gigantes — nunca versionar)
+data/
+
+# diversos
+.DS_Store
+npm-debug.log*

@@ -1,0 +1,185 @@
+// Sites Rio — devs encontram estabelecimentos do Rio sem site próprio.
+// App usa a URL pooled (6543/pgbouncer); db push/seed/scripts usam a direta (5432).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  DEV
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum PresenceClass {
+  UNKNOWN          // ainda não verificado pelo enrichment
+  NO_SITE          // nada encontrado — lead perfeito
+  SOCIAL_ONLY      // só Instagram/Facebook/linktree
+  AGGREGATOR_ONLY  // só iFood/TripAdvisor/Doctoralia etc.
+  HAS_SITE         // domínio próprio encontrado
+}
+
+enum LeadStatus {
+  NOVO
+  CONTATADO
+  NEGOCIANDO
+  FECHADO
+  DESCARTADO
+}
+
+enum CreditReason {
+  SIGNUP_BONUS
+  ADMIN_GRANT
+  UNLOCK
+  ADJUSTMENT
+}
+
+enum RunKind {
+  RFB_IMPORT
+  ENRICHMENT
+}
+
+enum RunStatus {
+  RUNNING
+  DONE
+  FAILED
+}
+
+// Conta de um desenvolvedor (ou do admin). Login por e-mail.
+model User {
+  id              String       @id @default(cuid())
+  email           String       @unique // sempre lowercase
+  name            String
+  passwordHash    String
+  role            Role         @default(DEV)
+  status          UserStatus   @default(ACTIVE)
+  creditBalance   Int          @default(0) // cache — o ledger é a fonte da verdade
+  emailVerifiedAt DateTime?
+  createdAt       DateTime     @default(now())
+  ledger          CreditLedger[]
+  unlocks         LeadUnlock[]
+  resetTokens     PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Anti força-bruta no login, chave "login:<email>". Mesma mecânica do playa-quadra.
+model RateLimit {
+  key         String    @id
+  fails       Int       @default(0)
+  firstAt     DateTime
+  lockedUntil DateTime?
+}
+
+// Categorias CNAE que importamos. `enabled=false` tira da ingestão sem apagar dados.
+model CnaeCategory {
+  code        String     @id // 7 dígitos, ex "5611201"
+  label       String
+  group       String // FOOD | BEAUTY | HEALTH | FITNESS | PET | RETAIL | SERVICES
+  valueWeight Int        @default(10) // 0–25, entra no score
+  enabled     Boolean    @default(true)
+  businesses  Business[]
+}
+
+// Um estabelecimento (dados públicos do CNPJ da Receita Federal).
+// Contatos só chegam ao cliente após unlock (ver src/lib/leads.ts).
+model Business {
+  id                String        @id @default(cuid())
+  cnpj              String        @unique // 14 dígitos
+  cnpjBasico        String // 8 primeiros dígitos (join com o arquivo Empresas)
+  razaoSocial       String        @default("")
+  nomeFantasia      String        @default("")
+  displayName       String // nomeFantasia || razão social limpa
+  cnaeCode          String
+  cnae              CnaeCategory  @relation(fields: [cnaeCode], references: [code])
+  isMatriz          Boolean       @default(true)
+  porte             String? // código de porte da RFB ("01" ME etc.)
+  openedAt          DateTime? // início de atividade
+  street            String        @default("")
+  bairro            String // normalizado (Title Case)
+  cep               String        @default("")
+  phone1            String        @default("") // ddd+numero, só dígitos
+  phone2            String        @default("")
+  email             String        @default("")
+  presenceClass     PresenceClass @default(UNKNOWN)
+  presenceCheckedAt DateTime? // null = ainda na fila do enrichment
+  presenceEvidence  Json? // {provider, query, results:[{url,title,matchedAs}]}
+  websiteUrl        String        @default("")
+  socialUrl         String        @default("")
+  score             Int           @default(0)
+  ingestRef         String // dump de origem, ex "2026-06"
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  unlocks           LeadUnlock[]
+
+  @@index([presenceClass, score(sort: Desc)]) // query principal do dashboard
+  @@index([bairro])
+  @@index([cnaeCode])
+  @@index([presenceCheckedAt]) // fila do enrichment
+  @@index([cnpjBasico]) // fase B do import
+}
+
+// Extrato de créditos, append-only: nunca UPDATE/DELETE em linhas existentes.
+model CreditLedger {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id])
+  delta     Int // +N compra/bônus, -1 unlock
+  reason    CreditReason
+  refId     String? // unlockId quando UNLOCK
+  note      String? // ex "Pix 15/07 R$50"
+  createdBy String? // id do admin em ADMIN_GRANT
+  createdAt DateTime     @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// Lead desbloqueado por um dev; também é o registro do mini-CRM.
+model LeadUnlock {
+  id         String     @id @default(cuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id])
+  businessId String
+  business   Business   @relation(fields: [businessId], references: [id])
+  status     LeadStatus @default(NOVO)
+  notes      String     @default("")
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@unique([userId, businessId]) // arbitra corrida dupla e dá idempotência
+  @@index([businessId]) // contador "N devs já desbloquearam"
+  @@index([userId, status]) // Meus Leads
+}
+
+// Execuções dos scripts de ingestão/enriquecimento (checkpoint + auditoria).
+model IngestionRun {
+  id             String    @id @default(cuid())
+  kind           RunKind
+  sourceRef      String // ex "2026-06"
+  status         RunStatus @default(RUNNING)
+  checkpoint     Json? // {file: "Estabelecimentos3", line: 1234567}
+  processedLines BigInt    @default(0)
+  affectedRows   Int       @default(0)
+  startedAt      DateTime  @default(now())
+  finishedAt     DateTime?
+  error          String?
+}
