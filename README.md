@@ -67,6 +67,23 @@ npm run dev            # http://localhost:3000
 > Supabase free “pausa” após ~1 semana sem uso e tem limite de 500 MB — o guardrail do
 > `stats.ts` e a lista de CNAEs mantêm o banco em ~120–160 MB.
 
+## Sites dos clientes (fábrica de demos)
+
+- **Toda demo já existe**: `/s/<slug>` renderiza o site de qualquer estabelecimento na hora,
+  com tema pelo segmento (cores, textos e CTA de WhatsApp). Slug determinístico:
+  `nome-slugificado-<6 últimos dígitos do CNPJ>` — o CRM mostra o link em cada lead
+  ("Ver demo") e o botão **"Copiar abordagem"** gera a mensagem de WhatsApp com o link.
+- Demos não publicadas têm **faixa de oferta** (R$497 + R$79/mês, botão para o
+  `SALES_WHATSAPP`) e `noindex` (não entram no Google).
+- **Cliente fechou?** `/admin/sites` → "Ativar" pelo CNPJ → personalizar textos/horário/
+  Instagram/WhatsApp, encurtar o slug (ex.: `/s/padaria-estrela`) e marcar **Publicado**
+  (faixa some, site passa a ser indexável).
+- **Domínio próprio** (ex.: `padariaestrela.com.br`): na Vercel, Project → Settings →
+  Domains → Add; aponte o DNS do cliente (CNAME `cname.vercel-dns.com` ou A `76.76.21.21`).
+  O domínio abre o app inteiro; oriente o cliente a usar `dominio.com.br/s/<slug>` ou
+  configure um redirect de `/` para o slug no painel da Vercel (Redirects). Registre o
+  domínio usado no campo "Domínio próprio" do site para controle.
+
 ## Testes
 
 - `npm test` — unitários (classificação de presença web e score).

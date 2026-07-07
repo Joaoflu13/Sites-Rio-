@@ -104,6 +104,52 @@ check("export CSV responde 200", csvResp.status() === 200);
 check("CSV tem o lead da Gávea com CNPJ", csv.includes("PADARIA ESTRELA DA GÁVEA") && csv.includes("11111111000191"));
 check("CSV usa ';' e BOM", csv.charCodeAt(0) === 0xfeff && csv.includes(";"));
 
+// ---- Fábrica de sites (demos automáticas) ----
+
+// 12. demo da padaria: hero, CTA WhatsApp, faixa de oferta, noindex
+const demoSlugPadaria = "padaria-estrela-da-gavea-000191";
+await page.goto(`${BASE}/s/${demoSlugPadaria}`);
+const demoBody = await page.textContent("body");
+check("demo mostra o nome no hero", demoBody.includes("PADARIA ESTRELA DA GÁVEA"));
+check("demo tem CTA de WhatsApp com o telefone certo",
+  (await page.locator('a[href*="wa.me/552125550001"]').count()) > 0);
+check("demo tem faixa de oferta com preço", demoBody.includes("R$ 497") && demoBody.includes("demonstra"));
+check("demo tem noindex", (await page.locator('meta[name="robots"][content*="noindex"]').count()) > 0);
+check("faixa aponta para o WhatsApp de vendas",
+  (await page.locator('.site-demo-bar a[href*="wa.me/5521988887777"]').count()) > 0);
+
+// 13. tema muda por segmento (padaria FOOD vs academia FITNESS sem telefone)
+const foodCta = await page.locator(".site-cta").textContent();
+await page.goto(`${BASE}/s/academia-corpo-em-forma-000193`);
+const fitBody = await page.textContent("body");
+const fitCta = await page.locator(".site-cta").textContent();
+check("tema/CTA muda por segmento", foodCta.trim() !== fitCta.trim());
+check("lead sem telefone não quebra (CTA vira mapa)", fitCta.includes("Como chegar"));
+check("demo da academia carrega", fitBody.includes("ACADEMIA CORPO EM FORMA"));
+
+// 14. detalhe do lead tem "Ver demo" e "Copiar abordagem"
+await page.goto(`${BASE}/app/leads?q=padaria`);
+await page.click(".lead-card a.name");
+await page.waitForURL("**/app/leads/**");
+check("detalhe tem link Ver demo", (await page.locator(`a[href*="/s/${demoSlugPadaria}"]`).count()) > 0);
+check("detalhe tem botão Copiar abordagem",
+  (await page.getByRole("button", { name: /copiar abordagem/i }).count()) > 0);
+
+// 15. admin ativa e publica o site → faixa some e vira indexável
+await page.goto(`${BASE}/admin/sites`);
+await page.fill("#cnpj", "11.111.111/0001-91");
+await page.click("section.card form button[type=submit]");
+await page.waitForURL("**edit=**");
+await page.fill("#slug", "padaria-estrela");
+await page.check('input[name="published"]');
+await page.getByRole("button", { name: "Salvar" }).click();
+await page.waitForURL("**ok=salvo**");
+await page.goto(`${BASE}/s/padaria-estrela`);
+const pubBody = await page.textContent("body");
+check("slug encurtado funciona", pubBody.includes("PADARIA ESTRELA DA GÁVEA"));
+check("publicado: faixa de demo sumiu", (await page.locator(".site-demo-bar").count()) === 0);
+check("publicado: sem noindex", (await page.locator('meta[name="robots"][content*="noindex"]').count()) === 0);
+
 await browser.close();
 console.log(failed === 0 ? "\nTODOS OS CHECKS PASSARAM" : `\n${failed} CHECK(S) FALHARAM`);
 process.exit(failed === 0 ? 0 : 1);

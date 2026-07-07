@@ -107,7 +107,10 @@ export default async function AdminPage() {
         </div>
 
         <div style={{ marginTop: 20, display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <Link className="btn" href="/admin/exportar">
+          <Link className="btn" href="/admin/sites">
+            Sites dos clientes
+          </Link>
+          <Link className="btn btn--ghost" href="/admin/exportar">
             Exportar CSV
           </Link>
           <Link className="btn btn--ghost" href="/admin/usuarios">

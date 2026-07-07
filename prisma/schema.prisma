@@ -120,6 +120,7 @@ model Business {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
   prospection       Prospection?
+  demoSite          DemoSite?
 
   @@index([presenceClass, score(sort: Desc)]) // query principal do dashboard
   @@index([bairro])
@@ -142,6 +143,26 @@ model Prospection {
   updatedAt   DateTime   @updatedAt
 
   @@index([status, updatedAt])
+}
+
+// Personalização/publicação do site de um estabelecimento. Sem linha aqui,
+// a demo em /s/[slug] é 100% gerada dos dados + tema do segmento. A linha é
+// criada quando o admin personaliza ou publica (cliente pagante).
+model DemoSite {
+  id           String   @id @default(cuid())
+  businessId   String   @unique
+  business     Business @relation(fields: [businessId], references: [id])
+  slug         String   @unique // pode ser encurtado na venda (ex.: padaria-estrela)
+  published    Boolean  @default(false) // true = pagante: sem faixa de demo, indexável
+  headline     String   @default("") // overrides; vazio = default do tema
+  about        String   @default("")
+  hours        String   @default("")
+  instagram    String   @default("")
+  whatsapp     String   @default("") // se diferente do phone1 da RFB
+  photoUrls    Json? // fase 2: fotos do cliente
+  customDomain String   @default("") // apontado manualmente na Vercel (ver README)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 // Execuções dos scripts de ingestão/enriquecimento (checkpoint + auditoria).

@@ -4,6 +4,9 @@ import { prisma } from "@/lib/db";
 import { groupLabel } from "@/lib/cnae";
 import { formatPhone, PRESENCE_LABEL, STATUS_LABEL, whatsappUrl } from "@/lib/leads";
 import type { Evidence } from "@/lib/classify";
+import { demoSlug } from "@/lib/slug";
+import { OFFER } from "@/lib/themes";
+import CopyPitch from "@/components/CopyPitch";
 import { setStatusAction } from "../actions";
 
 // Detalhe do estabelecimento: contatos, evidências da verificação e CRM.
@@ -15,13 +18,22 @@ export default async function LeadDetailPage({
   const { id } = await params;
   const b = await prisma.business.findUnique({
     where: { id },
-    include: { cnae: true, prospection: { include: { updatedBy: true } } },
+    include: { cnae: true, prospection: { include: { updatedBy: true } }, demoSite: true },
   });
   if (!b) notFound();
 
   const evidence = (b.presenceEvidence ?? null) as Evidence | null;
   const wa = whatsappUrl(b.phone1 || b.phone2);
   const currentStatus = b.prospection?.status ?? "NOVO";
+
+  const name = b.displayName || b.razaoSocial || "o estabelecimento";
+  const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+  const demoUrl = `${appUrl}/s/${b.demoSite?.slug ?? demoSlug(b)}`;
+  const pitch =
+    `Olá! Fiz uma pesquisa no Google e vi que ${name} ainda não tem site próprio — ` +
+    `quem procura acaba caindo no concorrente ou pagando comissão de aplicativo. ` +
+    `Eu já deixei um site pronto para vocês, dá uma olhada: ${demoUrl} — ` +
+    `se gostar, coloco no ar com endereço próprio por ${OFFER.setup} + ${OFFER.monthly}.`;
 
   return (
     <main className="page">
@@ -111,6 +123,32 @@ export default async function LeadDetailPage({
                 : "Nenhum resultado registrado."}
             </p>
           )}
+        </section>
+
+        <section className="card">
+          <h2 style={{ marginTop: 0 }}>Site demo 🚀</h2>
+          <p className="muted" style={{ fontSize: "0.9rem" }}>
+            O site de demonstração deste estabelecimento já está no ar — use-o na abordagem.
+            {b.demoSite?.published && (
+              <>
+                {" "}
+                <span className="ok">
+                  <strong>Cliente ativo (publicado).</strong>
+                </span>
+              </>
+            )}
+          </p>
+          <p style={{ wordBreak: "break-all", fontSize: "0.85rem" }}>
+            <a href={demoUrl} target="_blank" rel="noopener noreferrer">
+              {demoUrl}
+            </a>
+          </p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <a className="btn btn--ghost btn--sm" href={demoUrl} target="_blank" rel="noopener noreferrer">
+              Ver demo ↗
+            </a>
+            <CopyPitch text={pitch} />
+          </div>
         </section>
 
         <section className="card">

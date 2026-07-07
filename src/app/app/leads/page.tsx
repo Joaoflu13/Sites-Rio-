@@ -8,6 +8,7 @@ import {
   STATUS_LABEL,
   whatsappUrl,
 } from "@/lib/leads";
+import { demoSlug } from "@/lib/slug";
 import { setStatusAction } from "./actions";
 
 const PAGE_SIZE = 30;
@@ -168,6 +169,14 @@ export default async function LeadsPage({
                       WhatsApp
                     </a>
                   )}
+                  <a
+                    className="btn btn--ghost btn--sm"
+                    href={`/s/${demoSlug(b)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Ver demo ↗
+                  </a>
                   <form action={setStatusAction}>
                     <input type="hidden" name="businessId" value={b.id} />
                     <input type="hidden" name="status" value="CONTATADO" />
