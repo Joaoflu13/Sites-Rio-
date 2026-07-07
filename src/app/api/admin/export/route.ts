@@ -9,7 +9,10 @@ import { groupLabel } from "@/lib/cnae";
 const MAX_ROWS = 20_000;
 
 function csvCell(v: unknown): string {
-  const s = String(v ?? "");
+  let s = String(v ?? "");
+  // Anti fórmula-injection (CWE-1236): célula começando com =+-@ ou tab/CR
+  // seria avaliada pelo Excel; o apóstrofo força texto puro.
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
   return `"${s.replace(/"/g, '""')}"`;
 }
 
