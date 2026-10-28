@@ -17,6 +17,7 @@ export const PRESENCE_LABEL: Record<string, string> = {
   NO_SITE: "Sem site",
   SOCIAL_ONLY: "Só rede social",
   AGGREGATOR_ONLY: "Só agregador",
+  WEAK_SITE: "Site grátis/fraco",
   HAS_SITE: "Tem site",
 };
 
@@ -56,4 +57,27 @@ export function formatPhone(phone: string): string {
   if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
   if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
   return phone;
+}
+
+// Retorno combinado ("próximo contato"): o usuário escolhe só a DATA; guardamos
+// meio-dia de Brasília (15:00 UTC) para a data não "pular" de dia com fuso.
+// Brasil sem horário de verão desde 2019 → UTC-3 fixo.
+const BRT_OFFSET_MS = 3 * 60 * 60 * 1000;
+
+/** "2026-11-03" -> Date (meio-dia BRT). Vazio/ inválido -> null. */
+export function parseFollowUpDate(raw: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+  const d = new Date(`${raw}T15:00:00.000Z`);
+  return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== raw ? null : d;
+}
+
+/** Date -> "2026-11-03" (valor do <input type="date">), no fuso de Brasília. */
+export function followUpInputValue(d: Date | null | undefined): string {
+  return d ? new Date(d.getTime() - BRT_OFFSET_MS).toISOString().slice(0, 10) : "";
+}
+
+/** Último instante de "hoje" em Brasília: retornos até aqui estão vencidos/do dia. */
+export function endOfTodayBRT(now: Date = new Date()): Date {
+  const today = new Date(now.getTime() - BRT_OFFSET_MS).toISOString().slice(0, 10);
+  return new Date(new Date(`${today}T23:59:59.999Z`).getTime() + BRT_OFFSET_MS);
 }

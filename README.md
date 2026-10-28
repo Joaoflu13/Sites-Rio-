@@ -55,7 +55,8 @@ npm run dev            # http://localhost:3000
    orçamento da API (Serper: 2.500 buscas grátis, depois ~US$1/1k).
 6. **Acompanhar**: `npm run stats` (contagens + tamanho do banco; alerta acima de 250 mil
    linhas — desligue categorias com `CnaeCategory.enabled=false` e reimporte se precisar).
-7. Mudou pesos/fórmula? `npm run rescore` recalcula sem gastar API.
+7. Mudou pesos/fórmula? `npm run rescore` recalcula sem gastar API (também reclassifica
+   como **Site grátis/fraco** quem tinha "site" em negocio.site, wixsite, blogspot etc.).
 
 ## Deploy (Vercel + Supabase)
 

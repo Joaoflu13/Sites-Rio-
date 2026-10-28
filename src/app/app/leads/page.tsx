@@ -17,6 +17,7 @@ const BADGE_CLASS: Record<string, string> = {
   NO_SITE: "badge--nosite",
   SOCIAL_ONLY: "badge--social",
   AGGREGATOR_ONLY: "badge--aggregator",
+  WEAK_SITE: "badge--weak",
   HAS_SITE: "badge--hassite",
   UNKNOWN: "badge--unknown",
 };

@@ -22,11 +22,12 @@ enum UserStatus {
 }
 
 enum PresenceClass {
-  UNKNOWN          // ainda não verificado pelo enrichment
-  NO_SITE          // nada encontrado — lead perfeito
-  SOCIAL_ONLY      // só Instagram/Facebook/linktree
-  AGGREGATOR_ONLY  // só iFood/TripAdvisor/Doctoralia etc.
-  HAS_SITE         // domínio próprio encontrado
+  UNKNOWN // ainda não verificado pelo enrichment
+  NO_SITE // nada encontrado — lead perfeito
+  SOCIAL_ONLY // só Instagram/Facebook/linktree
+  AGGREGATOR_ONLY // só iFood/TripAdvisor/Doctoralia etc.
+  WEAK_SITE // "site" em construtor grátis (negocio.site, Wix grátis, Blogspot…)
+  HAS_SITE // domínio próprio encontrado
 }
 
 enum LeadStatus {
@@ -50,13 +51,13 @@ enum RunStatus {
 
 // Conta de um membro da equipe de vendas (criada pelo admin — sem auto-cadastro).
 model User {
-  id           String       @id @default(cuid())
-  email        String       @unique // sempre lowercase
+  id           String               @id @default(cuid())
+  email        String               @unique // sempre lowercase
   name         String
   passwordHash String
-  role         Role         @default(MEMBER)
-  status       UserStatus   @default(ACTIVE)
-  createdAt    DateTime     @default(now())
+  role         Role                 @default(MEMBER)
+  status       UserStatus           @default(ACTIVE)
+  createdAt    DateTime             @default(now())
   prospections Prospection[]
   resetTokens  PasswordResetToken[]
 }
@@ -132,17 +133,19 @@ model Business {
 // Registro do CRM de prospecção: no máximo UM por estabelecimento (compartilhado
 // pela equipe). Sem registro = lead "novo"/não trabalhado.
 model Prospection {
-  id          String     @id @default(cuid())
-  businessId  String     @unique
-  business    Business   @relation(fields: [businessId], references: [id])
-  status      LeadStatus @default(CONTATADO)
-  notes       String     @default("")
-  updatedById String?
-  updatedBy   User?      @relation(fields: [updatedById], references: [id])
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id             String     @id @default(cuid())
+  businessId     String     @unique
+  business       Business   @relation(fields: [businessId], references: [id])
+  status         LeadStatus @default(CONTATADO)
+  notes          String     @default("")
+  nextFollowUpAt DateTime? // próximo retorno combinado (data, meio-dia BRT)
+  updatedById    String?
+  updatedBy      User?      @relation(fields: [updatedById], references: [id])
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
   @@index([status, updatedAt])
+  @@index([nextFollowUpAt])
 }
 
 // Personalização/publicação do site de um estabelecimento. Sem linha aqui,

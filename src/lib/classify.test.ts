@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyPresence, domainOf } from "./classify";
+import { classifyPresence, domainOf, isFreeBuilder } from "./classify";
 
 const meta = { provider: "fake", query: "teste" };
 
@@ -7,6 +7,15 @@ describe("domainOf", () => {
   it("extrai domínio sem www", () => {
     expect(domainOf("https://www.padariaestrela.com.br/sobre")).toBe("padariaestrela.com.br");
     expect(domainOf("lixo")).toBe("");
+  });
+});
+
+describe("isFreeBuilder", () => {
+  it("reconhece construtores grátis e não domínios próprios", () => {
+    expect(isFreeBuilder("https://x.negocio.site/")).toBe(true);
+    expect(isFreeBuilder("https://www.x.wixsite.com/home")).toBe(true);
+    expect(isFreeBuilder("https://padariaestrela.com.br")).toBe(false);
+    expect(isFreeBuilder("")).toBe(false);
   });
 });
 
@@ -35,9 +44,43 @@ describe("classifyPresence", () => {
 
   it("HAS_SITE por sobreposição de título mesmo com domínio genérico", () => {
     const c = classifyPresence("Clínica Sorriso Carioca", [
-      { url: "https://sorrisoclinicaodonto.negocio.site", title: "Clínica Sorriso Carioca — Odontologia" },
+      { url: "https://odontorio.com.br", title: "Clínica Sorriso Carioca — Odontologia" },
     ], meta);
     expect(c.presenceClass).toBe("HAS_SITE");
+  });
+
+  it("WEAK_SITE para site do Google Meu Negócio (negocio.site)", () => {
+    const c = classifyPresence("Clínica Sorriso Carioca", [
+      { url: "https://sorrisoclinicaodonto.negocio.site", title: "Clínica Sorriso Carioca — Odontologia" },
+    ], meta);
+    expect(c.presenceClass).toBe("WEAK_SITE");
+    expect(c.websiteUrl).toBe("https://sorrisoclinicaodonto.negocio.site");
+    expect(c.evidence.results[0].matchedAs).toBe("site-gratis");
+  });
+
+  it("WEAK_SITE em sites.google.com (não cai no ruído google.com)", () => {
+    const c = classifyPresence("Academia Corpo em Forma", [
+      { url: "https://sites.google.com/view/corpoemforma", title: "Academia Corpo em Forma" },
+    ], meta);
+    expect(c.presenceClass).toBe("WEAK_SITE");
+  });
+
+  it("WEAK_SITE vence rede social; site próprio vence WEAK_SITE", () => {
+    const insta = { url: "https://www.instagram.com/corpoemforma", title: "Academia Corpo em Forma" };
+    const wix = { url: "https://corpoemforma.wixsite.com/home", title: "Academia Corpo em Forma" };
+    const own = { url: "https://corpoemforma.com.br", title: "Academia Corpo em Forma" };
+    expect(classifyPresence("Academia Corpo em Forma", [insta, wix], meta).presenceClass).toBe("WEAK_SITE");
+    const c = classifyPresence("Academia Corpo em Forma", [wix, own], meta);
+    expect(c.presenceClass).toBe("HAS_SITE");
+    expect(c.websiteUrl).toBe(own.url);
+  });
+
+  it("construtor grátis de homônimo não conta", () => {
+    const c = classifyPresence("Padaria Estrela da Gávea", [
+      { url: "https://receitasdavovo.blogspot.com/pao", title: "Receita de pão caseiro" },
+    ], meta);
+    expect(c.presenceClass).toBe("NO_SITE");
+    expect(c.evidence.results[0].matchedAs).toBe("site-gratis-homonimo");
   });
 
   it("NÃO marca HAS_SITE para homônimo/portal sem relação com o nome", () => {

@@ -46,13 +46,16 @@ Três subsistemas sobre um único Postgres:
    social/porte via `UPDATE...FROM (VALUES)` em lote. `enrich.ts` busca cada negócio numa
    API de busca plugável (`src/lib/finder/`), classifica presença web (`src/lib/classify.ts`,
    função pura: listas de diretórios/social/agregadores + similaridade de nome contra
-   homônimos) e calcula score 0–100 (`src/lib/score.ts` + tiers de bairro em
+   homônimos; construtor grátis tipo negocio.site/wixsite → `WEAK_SITE`; no Serper, o site do
+   painel do Google (`knowledgeGraph.website`) entra como 1º resultado) e calcula score 0–100 (`src/lib/score.ts` + tiers de bairro em
    `src/lib/bairros.ts`). Fila do enrich = `presenceCheckedAt IS NULL` (retomável por
    construção; item só é carimbado no update do resultado).
 
 2. **CRM interno** (`src/app/app/*`, guard `requireUser` no layout): fila de prospecção
    (`/app/leads`, negócios SEM `Prospection`), detalhe com evidências da busca, pipeline por
-   status (`/app/pipeline`). `Prospection` é 1-por-Business (`businessId @unique`),
+   status (`/app/pipeline`, com aba "Retornos p/ hoje" por `Prospection.nextFollowUpAt`, data
+   guardada ao meio-dia BRT — helpers em `src/lib/leads.ts`). Mensagem de abordagem varia pela
+   presença web (`src/lib/pitch.ts`). `Prospection` é 1-por-Business (`businessId @unique`),
    compartilhado pela equipe; status NOVO remove a linha (volta pra fila).
 
 3. **Fábrica de sites** (`src/app/s/[slug]/page.tsx`): renderiza o site do estabelecimento

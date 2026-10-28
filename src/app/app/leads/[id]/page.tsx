@@ -2,10 +2,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { groupLabel } from "@/lib/cnae";
-import { formatPhone, PRESENCE_LABEL, STATUS_LABEL, whatsappUrl } from "@/lib/leads";
+import {
+  followUpInputValue,
+  formatPhone,
+  PRESENCE_LABEL,
+  STATUS_LABEL,
+  whatsappUrl,
+} from "@/lib/leads";
 import type { Evidence } from "@/lib/classify";
 import { demoSlug } from "@/lib/slug";
-import { OFFER } from "@/lib/themes";
+import { buildPitch } from "@/lib/pitch";
 import CopyPitch from "@/components/CopyPitch";
 import { setStatusAction } from "../actions";
 
@@ -29,11 +35,12 @@ export default async function LeadDetailPage({
   const name = b.displayName || b.razaoSocial || "o estabelecimento";
   const appUrl = process.env.APP_URL ?? "http://localhost:3000";
   const demoUrl = `${appUrl}/s/${b.demoSite?.slug ?? demoSlug(b)}`;
-  const pitch =
-    `Olá! Fiz uma pesquisa no Google e vi que ${name} ainda não tem site próprio — ` +
-    `quem procura acaba caindo no concorrente ou pagando comissão de aplicativo. ` +
-    `Eu já deixei um site pronto para vocês, dá uma olhada: ${demoUrl} — ` +
-    `se gostar, coloco no ar com endereço próprio por ${OFFER.setup} + ${OFFER.monthly}.`;
+  const pitch = buildPitch({
+    name,
+    presenceClass: b.presenceClass,
+    websiteUrl: b.websiteUrl,
+    demoUrl,
+  });
 
   return (
     <main className="page">
@@ -91,7 +98,9 @@ export default async function LeadDetailPage({
           <h2 style={{ marginTop: 0 }}>Presença web (evidências)</h2>
           {b.websiteUrl && (
             <p>
-              <strong>Site encontrado:</strong>{" "}
+              <strong>
+                {b.presenceClass === "WEAK_SITE" ? "Site grátis encontrado:" : "Site encontrado:"}
+              </strong>{" "}
               <a href={b.websiteUrl} target="_blank" rel="noopener noreferrer">
                 {b.websiteUrl}
               </a>
@@ -173,6 +182,15 @@ export default async function LeadDetailPage({
                   </option>
                 ))}
               </select>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label htmlFor="nextFollowUpAt">Próximo retorno</label>
+              <input
+                id="nextFollowUpAt"
+                name="nextFollowUpAt"
+                type="date"
+                defaultValue={followUpInputValue(b.prospection?.nextFollowUpAt)}
+              />
             </div>
             <div style={{ marginBottom: 12 }}>
               <label htmlFor="notes">Notas</label>
