@@ -61,7 +61,11 @@ Três subsistemas sobre um único Postgres:
 3. **Fábrica de sites** (`src/app/s/[slug]/page.tsx`): renderiza o site do estabelecimento
    sob demanda — nada é gerado/deployado por site. Slug determinístico
    `slugify(nome)-<6 últimos dígitos do cnpj>` (`src/lib/slug.ts`); temas por grupo CNAE em
-   `src/lib/themes.ts` (gradientes CSS, sem imagens externas). `DemoSite` (lazy, 1-por-Business)
+   `src/lib/themes.ts` (cor, fonte de título via next/font em `s/[slug]/fonts.ts`, ícones
+   lucide em `s/[slug]/icons.tsx`, fotos do Unsplash por ID — a foto vai por cima do gradiente,
+   que aparece se ela falhar). `siteVariant(cnpj)` escolhe foto e layout do hero (cover|split)
+   de forma estável. Texto público usa `bairroEm/bairroDe/bairroPublic` (`na Tijuca`, acentos)
+   e `publicCnaeLabel` (sem jargão RFB). `DemoSite` (lazy, 1-por-Business)
    guarda personalização pós-venda; `published=true` remove a faixa de oferta e o `noindex`.
    Edição em `/admin/sites`.
 
