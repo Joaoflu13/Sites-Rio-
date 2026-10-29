@@ -44,11 +44,32 @@ export function buildLeadWhere(f: LeadFilters): Prisma.BusinessWhereInput {
   return where;
 }
 
-/** Link de WhatsApp para um telefone brasileiro (ddd+numero, só dígitos). */
-export function whatsappUrl(phone: string): string | null {
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length < 10) return null; // fixo sem DDD etc.
-  return `https://wa.me/55${digits}`;
+/**
+ * Celular brasileiro normalizado (DDD + 9 + 8 dígitos) ou null se for fixo/inválido.
+ * Fixo começa com 2–5 depois do DDD e não tem WhatsApp (salvo exceção rara).
+ * O cadastro da RFB guarda muito celular antigo sem o 9º dígito (DDD + 8, começando
+ * com 6–9): esses ganham o 9 na frente.
+ */
+export function normalizeMobile(phone: string): string | null {
+  let d = phone.replace(/\D/g, "");
+  if (d.length >= 12 && d.startsWith("55")) d = d.slice(2);
+  if (d.length === 11 && d[2] === "9") return d;
+  if (d.length === 10 && /[6-9]/.test(d[2])) return `${d.slice(0, 2)}9${d.slice(2)}`;
+  return null;
+}
+
+/** Link de WhatsApp do primeiro celular entre os telefones dados (fixos são pulados). */
+export function whatsappUrl(...phones: string[]): string | null {
+  for (const p of phones) {
+    const m = normalizeMobile(p ?? "");
+    if (m) return `https://wa.me/55${m}`;
+  }
+  return null;
+}
+
+/** "Fixo" ou "Celular" para exibir ao lado do número. */
+export function phoneKind(phone: string): "Celular" | "Fixo" {
+  return normalizeMobile(phone) ? "Celular" : "Fixo";
 }
 
 /** Formata "21999998888" -> "(21) 99999-8888" para exibição. */

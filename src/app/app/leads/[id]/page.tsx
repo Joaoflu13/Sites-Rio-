@@ -5,6 +5,7 @@ import { groupLabel } from "@/lib/cnae";
 import {
   followUpInputValue,
   formatPhone,
+  phoneKind,
   PRESENCE_LABEL,
   STATUS_LABEL,
   whatsappUrl,
@@ -29,7 +30,8 @@ export default async function LeadDetailPage({
   if (!b) notFound();
 
   const evidence = (b.presenceEvidence ?? null) as Evidence | null;
-  const wa = whatsappUrl(b.phone1 || b.phone2);
+  const wa = whatsappUrl(b.phone1, b.phone2);
+  const callPhone = b.phone1 || b.phone2;
   const currentStatus = b.prospection?.status ?? "NOVO";
 
   const name = b.displayName || b.razaoSocial || "o estabelecimento";
@@ -64,8 +66,13 @@ export default async function LeadDetailPage({
             {b.cep && ` · CEP ${b.cep}`}
           </p>
           <p>
-            <strong>Telefone:</strong> {b.phone1 ? formatPhone(b.phone1) : "—"}
-            {b.phone2 && ` / ${formatPhone(b.phone2)}`}
+            <strong>Telefone:</strong>{" "}
+            {[b.phone1, b.phone2].filter(Boolean).length
+              ? [b.phone1, b.phone2]
+                  .filter(Boolean)
+                  .map((p) => `${formatPhone(p)} (${phoneKind(p).toLowerCase()})`)
+                  .join(" / ")
+              : "—"}
             <br />
             <strong>E-mail:</strong> {b.email || "—"}
           </p>
@@ -86,8 +93,13 @@ export default async function LeadDetailPage({
                 Chamar no WhatsApp
               </a>
             )}
-            {b.phone1 && (
-              <a className="btn btn--ghost btn--sm" href={`tel:+55${b.phone1}`}>
+            {!wa && callPhone && (
+              <span className="muted" style={{ fontSize: "0.85rem", alignSelf: "center" }}>
+                Sem celular no cadastro — só ligação.
+              </span>
+            )}
+            {callPhone && (
+              <a className={`btn btn--sm${wa ? " btn--ghost" : ""}`} href={`tel:+55${callPhone}`}>
                 Ligar
               </a>
             )}

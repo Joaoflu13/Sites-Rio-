@@ -3,7 +3,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { buildLeadWhere, PRESENCE_LABEL } from "@/lib/leads";
+import { buildLeadWhere, normalizeMobile, PRESENCE_LABEL } from "@/lib/leads";
 import { groupLabel } from "@/lib/cnae";
 
 const MAX_ROWS = 20_000;
@@ -39,7 +39,7 @@ export async function GET(req: Request) {
   const header = [
     "nome", "razao_social", "cnpj", "segmento", "categoria", "bairro", "endereco", "cep",
     "telefone1", "telefone2", "email", "presenca_web", "score", "site", "rede_social",
-    "inicio_atividade", "dados_de",
+    "inicio_atividade", "dados_de", "celular_whatsapp",
   ];
   const lines = [header.join(";")];
   for (const b of rows) {
@@ -49,6 +49,7 @@ export async function GET(req: Request) {
         b.street, b.cep, b.phone1, b.phone2, b.email,
         PRESENCE_LABEL[b.presenceClass] ?? b.presenceClass, b.score, b.websiteUrl, b.socialUrl,
         b.openedAt ? b.openedAt.toISOString().slice(0, 10) : "", b.ingestRef,
+        normalizeMobile(b.phone1) ?? normalizeMobile(b.phone2) ?? "",
       ]
         .map(csvCell)
         .join(";")

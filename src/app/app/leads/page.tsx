@@ -4,6 +4,7 @@ import { CNAE_GROUPS, groupLabel } from "@/lib/cnae";
 import {
   buildLeadWhere,
   formatPhone,
+  phoneKind,
   PRESENCE_LABEL,
   STATUS_LABEL,
   whatsappUrl,
@@ -141,7 +142,8 @@ export default async function LeadsPage({
       ) : (
         <div className="leads-grid">
           {leads.map((b) => {
-            const wa = whatsappUrl(b.phone1 || b.phone2);
+            const wa = whatsappUrl(b.phone1, b.phone2);
+            const callPhone = b.phone1 || b.phone2;
             return (
               <div className="card lead-card" key={b.id}>
                 <div>
@@ -157,18 +159,24 @@ export default async function LeadsPage({
                   {b.cnae.label} · {groupLabel(b.cnae.group)}
                   <br />
                   {b.bairro}
-                  {b.phone1 && (
+                  {callPhone && (
                     <>
                       <br />
-                      📞 {formatPhone(b.phone1)}
+                      📞 {formatPhone(callPhone)} <span className="muted">· {phoneKind(callPhone)}</span>
                     </>
                   )}
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: "auto" }}>
-                  {wa && (
+                  {wa ? (
                     <a className="btn btn--sm" href={wa} target="_blank" rel="noopener noreferrer">
                       WhatsApp
                     </a>
+                  ) : (
+                    callPhone && (
+                      <a className="btn btn--sm" href={`tel:+55${callPhone}`}>
+                        Ligar
+                      </a>
+                    )
                   )}
                   <a
                     className="btn btn--ghost btn--sm"

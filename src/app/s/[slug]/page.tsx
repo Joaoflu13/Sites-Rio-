@@ -71,7 +71,9 @@ export default async function SitePage({ params }: { params: Promise<{ slug: str
   const photoBg = photo ? `url("${photo}") center / cover no-repeat, ${theme.heroBg}` : theme.heroBg;
 
   const phone = demo?.whatsapp || b.phone1 || b.phone2;
-  const wa = phone ? whatsappUrl(phone) : null;
+  // WhatsApp só em celular (fixo vira botão de ligar); o número do admin vem primeiro
+  const wa = whatsappUrl(demo?.whatsapp ?? "", b.phone1, b.phone2);
+  const callPhone = b.phone1 || b.phone2;
   const waWithMsg = wa
     ? `${wa}?text=${encodeURIComponent(`Olá! Vi o site de vocês e queria mais informações 😊`)}`
     : null;
@@ -90,8 +92,8 @@ export default async function SitePage({ params }: { params: Promise<{ slug: str
   // Ação principal: WhatsApp > telefone > mapa (nem todo CNPJ tem celular).
   const primary = waWithMsg
     ? { href: waWithMsg, label: theme.ctaLabel, icon: <MessageCircle size={20} aria-hidden /> }
-    : b.phone1
-      ? { href: `tel:+55${b.phone1}`, label: `Ligue: ${formatPhone(b.phone1)}`, icon: <Phone size={20} aria-hidden /> }
+    : callPhone
+      ? { href: `tel:+55${callPhone}`, label: `Ligue: ${formatPhone(callPhone)}`, icon: <Phone size={20} aria-hidden /> }
       : { href: mapsUrl, label: "Como chegar", icon: <Navigation size={20} aria-hidden /> };
 
   const vars = {
@@ -239,9 +241,9 @@ export default async function SitePage({ params }: { params: Promise<{ slug: str
                   <MessageCircle size={18} aria-hidden /> WhatsApp
                 </a>
               )}
-              {b.phone1 && (
-                <a className="site-btn site-btn--ghost" href={`tel:+55${b.phone1}`}>
-                  <Phone size={18} aria-hidden /> {formatPhone(b.phone1)}
+              {callPhone && (
+                <a className="site-btn site-btn--ghost" href={`tel:+55${callPhone}`}>
+                  <Phone size={18} aria-hidden /> {formatPhone(callPhone)}
                 </a>
               )}
               <a className="site-btn site-btn--ghost" href={mapsUrl} target="_blank" rel="noopener noreferrer">

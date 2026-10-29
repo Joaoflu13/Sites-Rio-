@@ -86,7 +86,8 @@ export default async function PipelinePage({
             <tbody>
               {rows.map((p) => {
                 const b = p.business;
-                const wa = whatsappUrl(b.phone1 || b.phone2);
+                const wa = whatsappUrl(b.phone1, b.phone2);
+                const callPhone = b.phone1 || b.phone2;
                 return (
                   <tr key={p.id}>
                     <td>
@@ -94,7 +95,10 @@ export default async function PipelinePage({
                     </td>
                     <td>{b.bairro}</td>
                     <td>{b.cnae.label}</td>
-                    <td>{b.phone1 ? formatPhone(b.phone1) : "—"}</td>
+                    <td>
+                      {callPhone ? formatPhone(callPhone) : "—"}
+                      {callPhone && !wa && <span className="muted"> · fixo</span>}
+                    </td>
                     {active === "RETORNOS" && <td>{STATUS_LABEL[p.status]}</td>}
                     <td className={p.nextFollowUpAt && p.nextFollowUpAt < startOfToday ? "error" : ""}>
                       {p.nextFollowUpAt
@@ -107,10 +111,16 @@ export default async function PipelinePage({
                       {p.updatedBy ? ` · ${p.updatedBy.name}` : ""}
                     </td>
                     <td>
-                      {wa && (
+                      {wa ? (
                         <a className="btn btn--sm" href={wa} target="_blank" rel="noopener noreferrer">
                           WhatsApp
                         </a>
+                      ) : (
+                        callPhone && (
+                          <a className="btn btn--ghost btn--sm" href={`tel:+55${callPhone}`}>
+                            Ligar
+                          </a>
+                        )
                       )}
                     </td>
                   </tr>
