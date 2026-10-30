@@ -7,6 +7,8 @@
 // - Qualquer outro domínio só vira "site próprio" se o NOME casar (token
 //   significativo no domínio ou sobreposição título×nome), para não marcar
 //   homônimos/portais como site do estabelecimento.
+// - Domínio de construtor grátis (negocio.site, *.wixsite.com, Blogspot…) que
+//   casa com o nome vira WEAK_SITE: tem "site", mas fraco — upsell direto.
 
 import type { SearchResult } from "@/lib/finder/types";
 import type { PresenceClass } from "@prisma/client";
@@ -32,6 +34,16 @@ const AGGREGATOR = [
   "doctoralia.com.br", "boaconsulta.com", "docplanner.com",
   "guiamais.com.br", "apontador.com.br", "telelistas.net", "getninjas.com.br",
   "kekanto.com.br", "nibo.com.br", "hotmart.com", "ancoradouro.net",
+];
+
+// Construtores grátis/subdomínios de plataforma: "site" sem domínio próprio.
+// negocio.site/business.site são os sites do Google Meu Negócio, DESLIGADOS
+// pelo Google em 2024 — quem ainda aponta para eles tem link quebrado.
+const FREE_BUILDER = [
+  "negocio.site", "business.site", "wixsite.com", "blogspot.com", "blogspot.com.br",
+  "wordpress.com", "sites.google.com", "webnode.page", "webnode.com.br", "godaddysites.com",
+  "weebly.com", "yolasite.com", "site123.me", "carrd.co", "square.site", "ueniweb.com",
+  "comunidades.net", "mystrikingly.com", "jimdosite.com",
 ];
 
 // Palavras que não identificam o negócio (não contam como token significativo).
@@ -78,6 +90,11 @@ function inList(domain: string, list: string[]): boolean {
   return list.some((d) => domain === d || domain.endsWith("." + d));
 }
 
+/** true se a URL é de construtor grátis (sem domínio próprio). */
+export function isFreeBuilder(url: string): boolean {
+  return inList(domainOf(url), FREE_BUILDER);
+}
+
 /** Tokens do nome que identificam o negócio (≥4 chars, fora das stopwords). */
 function significantTokens(name: string): string[] {
   return normalize(name)
@@ -110,6 +127,7 @@ export function classifyPresence(
 ): Classification {
   const evidence: Evidence = { provider: meta.provider, query: meta.query, results: [] };
   let websiteUrl = "";
+  let weakUrl = "";
   let socialUrl = "";
   let sawSocial = false;
   let sawAggregator = false;
@@ -119,7 +137,15 @@ export function classifyPresence(
     if (!domain) continue;
 
     let matchedAs = "ignorado";
-    if (inList(domain, DIRECTORY_NOISE)) {
+    // antes do ruído: sites.google.com cairia em google.com
+    if (inList(domain, FREE_BUILDER)) {
+      if (nameMatches(displayName, domain, r.title)) {
+        matchedAs = "site-gratis";
+        if (!weakUrl) weakUrl = r.url;
+      } else {
+        matchedAs = "site-gratis-homonimo";
+      }
+    } else if (inList(domain, DIRECTORY_NOISE)) {
       matchedAs = "diretorio";
     } else if (inList(domain, SOCIAL)) {
       // Só conta a rede social se o resultado tiver a ver com o nome.
@@ -152,11 +178,13 @@ export function classifyPresence(
 
   const presenceClass: PresenceClass = websiteUrl
     ? "HAS_SITE"
-    : sawSocial
-      ? "SOCIAL_ONLY"
-      : sawAggregator
-        ? "AGGREGATOR_ONLY"
-        : "NO_SITE";
+    : weakUrl
+      ? "WEAK_SITE"
+      : sawSocial
+        ? "SOCIAL_ONLY"
+        : sawAggregator
+          ? "AGGREGATOR_ONLY"
+          : "NO_SITE";
 
-  return { presenceClass, websiteUrl, socialUrl, evidence };
+  return { presenceClass, websiteUrl: websiteUrl || weakUrl, socialUrl, evidence };
 }

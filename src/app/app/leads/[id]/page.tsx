@@ -2,10 +2,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { groupLabel } from "@/lib/cnae";
-import { formatPhone, PRESENCE_LABEL, STATUS_LABEL, whatsappUrl } from "@/lib/leads";
+import {
+  followUpInputValue,
+  formatPhone,
+  phoneKind,
+  PRESENCE_LABEL,
+  STATUS_LABEL,
+  whatsappUrl,
+} from "@/lib/leads";
 import type { Evidence } from "@/lib/classify";
 import { demoSlug } from "@/lib/slug";
-import { OFFER } from "@/lib/themes";
+import { buildPitch } from "@/lib/pitch";
 import CopyPitch from "@/components/CopyPitch";
 import { setStatusAction } from "../actions";
 
@@ -23,17 +30,19 @@ export default async function LeadDetailPage({
   if (!b) notFound();
 
   const evidence = (b.presenceEvidence ?? null) as Evidence | null;
-  const wa = whatsappUrl(b.phone1 || b.phone2);
+  const wa = whatsappUrl(b.phone1, b.phone2);
+  const callPhone = b.phone1 || b.phone2;
   const currentStatus = b.prospection?.status ?? "NOVO";
 
   const name = b.displayName || b.razaoSocial || "o estabelecimento";
   const appUrl = process.env.APP_URL ?? "http://localhost:3000";
   const demoUrl = `${appUrl}/s/${b.demoSite?.slug ?? demoSlug(b)}`;
-  const pitch =
-    `Olá! Fiz uma pesquisa no Google e vi que ${name} ainda não tem site próprio — ` +
-    `quem procura acaba caindo no concorrente ou pagando comissão de aplicativo. ` +
-    `Eu já deixei um site pronto para vocês, dá uma olhada: ${demoUrl} — ` +
-    `se gostar, coloco no ar com endereço próprio por ${OFFER.setup} + ${OFFER.monthly}.`;
+  const pitch = buildPitch({
+    name,
+    presenceClass: b.presenceClass,
+    websiteUrl: b.websiteUrl,
+    demoUrl,
+  });
 
   return (
     <main className="page">
@@ -57,8 +66,13 @@ export default async function LeadDetailPage({
             {b.cep && ` · CEP ${b.cep}`}
           </p>
           <p>
-            <strong>Telefone:</strong> {b.phone1 ? formatPhone(b.phone1) : "—"}
-            {b.phone2 && ` / ${formatPhone(b.phone2)}`}
+            <strong>Telefone:</strong>{" "}
+            {[b.phone1, b.phone2].filter(Boolean).length
+              ? [b.phone1, b.phone2]
+                  .filter(Boolean)
+                  .map((p) => `${formatPhone(p)} (${phoneKind(p).toLowerCase()})`)
+                  .join(" / ")
+              : "—"}
             <br />
             <strong>E-mail:</strong> {b.email || "—"}
           </p>
@@ -79,8 +93,13 @@ export default async function LeadDetailPage({
                 Chamar no WhatsApp
               </a>
             )}
-            {b.phone1 && (
-              <a className="btn btn--ghost btn--sm" href={`tel:+55${b.phone1}`}>
+            {!wa && callPhone && (
+              <span className="muted" style={{ fontSize: "0.85rem", alignSelf: "center" }}>
+                Sem celular no cadastro — só ligação.
+              </span>
+            )}
+            {callPhone && (
+              <a className={`btn btn--sm${wa ? " btn--ghost" : ""}`} href={`tel:+55${callPhone}`}>
                 Ligar
               </a>
             )}
@@ -91,7 +110,9 @@ export default async function LeadDetailPage({
           <h2 style={{ marginTop: 0 }}>Presença web (evidências)</h2>
           {b.websiteUrl && (
             <p>
-              <strong>Site encontrado:</strong>{" "}
+              <strong>
+                {b.presenceClass === "WEAK_SITE" ? "Site grátis encontrado:" : "Site encontrado:"}
+              </strong>{" "}
               <a href={b.websiteUrl} target="_blank" rel="noopener noreferrer">
                 {b.websiteUrl}
               </a>
@@ -173,6 +194,15 @@ export default async function LeadDetailPage({
                   </option>
                 ))}
               </select>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label htmlFor="nextFollowUpAt">Próximo retorno</label>
+              <input
+                id="nextFollowUpAt"
+                name="nextFollowUpAt"
+                type="date"
+                defaultValue={followUpInputValue(b.prospection?.nextFollowUpAt)}
+              />
             </div>
             <div style={{ marginBottom: 12 }}>
               <label htmlFor="notes">Notas</label>

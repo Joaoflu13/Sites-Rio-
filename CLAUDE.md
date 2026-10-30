@@ -46,19 +46,26 @@ Três subsistemas sobre um único Postgres:
    social/porte via `UPDATE...FROM (VALUES)` em lote. `enrich.ts` busca cada negócio numa
    API de busca plugável (`src/lib/finder/`), classifica presença web (`src/lib/classify.ts`,
    função pura: listas de diretórios/social/agregadores + similaridade de nome contra
-   homônimos) e calcula score 0–100 (`src/lib/score.ts` + tiers de bairro em
+   homônimos; construtor grátis tipo negocio.site/wixsite → `WEAK_SITE`; no Serper, o site do
+   painel do Google (`knowledgeGraph.website`) entra como 1º resultado) e calcula score 0–100 (`src/lib/score.ts` + tiers de bairro em
    `src/lib/bairros.ts`). Fila do enrich = `presenceCheckedAt IS NULL` (retomável por
    construção; item só é carimbado no update do resultado).
 
 2. **CRM interno** (`src/app/app/*`, guard `requireUser` no layout): fila de prospecção
    (`/app/leads`, negócios SEM `Prospection`), detalhe com evidências da busca, pipeline por
-   status (`/app/pipeline`). `Prospection` é 1-por-Business (`businessId @unique`),
+   status (`/app/pipeline`, com aba "Retornos p/ hoje" por `Prospection.nextFollowUpAt`, data
+   guardada ao meio-dia BRT — helpers em `src/lib/leads.ts`). Mensagem de abordagem varia pela
+   presença web (`src/lib/pitch.ts`). `Prospection` é 1-por-Business (`businessId @unique`),
    compartilhado pela equipe; status NOVO remove a linha (volta pra fila).
 
 3. **Fábrica de sites** (`src/app/s/[slug]/page.tsx`): renderiza o site do estabelecimento
    sob demanda — nada é gerado/deployado por site. Slug determinístico
    `slugify(nome)-<6 últimos dígitos do cnpj>` (`src/lib/slug.ts`); temas por grupo CNAE em
-   `src/lib/themes.ts` (gradientes CSS, sem imagens externas). `DemoSite` (lazy, 1-por-Business)
+   `src/lib/themes.ts` (cor, fonte de título via next/font em `s/[slug]/fonts.ts`, ícones
+   lucide em `s/[slug]/icons.tsx`, fotos do Unsplash por ID — a foto vai por cima do gradiente,
+   que aparece se ela falhar). `siteVariant(cnpj)` escolhe foto e layout do hero (cover|split)
+   de forma estável. Texto público usa `bairroEm/bairroDe/bairroPublic` (`na Tijuca`, acentos)
+   e `publicCnaeLabel` (sem jargão RFB). `DemoSite` (lazy, 1-por-Business)
    guarda personalização pós-venda; `published=true` remove a faixa de oferta e o `noindex`.
    Edição em `/admin/sites`.
 
