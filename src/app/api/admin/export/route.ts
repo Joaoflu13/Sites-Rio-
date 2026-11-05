@@ -5,16 +5,10 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { buildLeadWhere, normalizeMobile, PRESENCE_LABEL } from "@/lib/leads";
 import { groupLabel } from "@/lib/cnae";
+import { csvResponse, toCsv } from "@/lib/csv";
+import { normalizeEmail } from "@/lib/emails";
 
 const MAX_ROWS = 20_000;
-
-function csvCell(v: unknown): string {
-  let s = String(v ?? "");
-  // Anti fórmula-injection (CWE-1236): célula começando com =+-@ ou tab/CR
-  // seria avaliada pelo Excel; o apóstrofo força texto puro.
-  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
-  return `"${s.replace(/"/g, '""')}"`;
-}
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -29,40 +23,30 @@ export async function GET(req: Request) {
     minScore: Number(url.searchParams.get("minScore")) || undefined,
   });
 
-  const rows = await prisma.business.findMany({
-    where,
-    include: { cnae: true },
-    orderBy: { score: "desc" },
-    take: MAX_ROWS,
-  });
+  const [rows, suppressed] = await Promise.all([
+    prisma.business.findMany({
+      where, // buildLeadWhere já exclui quem pediu para sair (optOutAt)
+      include: { cnae: true },
+      orderBy: { score: "desc" },
+      take: MAX_ROWS,
+    }),
+    prisma.suppressedEmail.findMany({ select: { email: true } }),
+  ]);
+  // e-mail na supressão sai da planilha (mesmo que o CNPJ não tenha pedido)
+  const blocked = new Set(suppressed.map((s) => s.email));
 
   const header = [
     "nome", "razao_social", "cnpj", "segmento", "categoria", "bairro", "endereco", "cep",
     "telefone1", "telefone2", "email", "presenca_web", "score", "site", "rede_social",
     "inicio_atividade", "dados_de", "celular_whatsapp",
   ];
-  const lines = [header.join(";")];
-  for (const b of rows) {
-    lines.push(
-      [
-        b.displayName, b.razaoSocial, b.cnpj, groupLabel(b.cnae.group), b.cnae.label, b.bairro,
-        b.street, b.cep, b.phone1, b.phone2, b.email,
-        PRESENCE_LABEL[b.presenceClass] ?? b.presenceClass, b.score, b.websiteUrl, b.socialUrl,
-        b.openedAt ? b.openedAt.toISOString().slice(0, 10) : "", b.ingestRef,
-        normalizeMobile(b.phone1) ?? normalizeMobile(b.phone2) ?? "",
-      ]
-        .map(csvCell)
-        .join(";")
-    );
-  }
-
-  const BOM = String.fromCharCode(0xfeff);
-  const csv = BOM + lines.join("\r\n") + "\r\n";
+  const data = rows.map((b) => [
+    b.displayName, b.razaoSocial, b.cnpj, groupLabel(b.cnae.group), b.cnae.label, b.bairro,
+    b.street, b.cep, b.phone1, b.phone2, blocked.has(normalizeEmail(b.email)) ? "" : b.email,
+    PRESENCE_LABEL[b.presenceClass] ?? b.presenceClass, b.score, b.websiteUrl, b.socialUrl,
+    b.openedAt ? b.openedAt.toISOString().slice(0, 10) : "", b.ingestRef,
+    normalizeMobile(b.phone1) ?? normalizeMobile(b.phone2) ?? "",
+  ]);
   const stamp = new Date().toISOString().slice(0, 10);
-  return new Response(csv, {
-    headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="sites-rio-leads-${stamp}.csv"`,
-    },
-  });
+  return csvResponse(toCsv(header, data), `sites-rio-leads-${stamp}.csv`);
 }

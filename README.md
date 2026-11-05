@@ -85,6 +85,25 @@ npm run dev            # http://localhost:3000
   configure um redirect de `/` para o slug no painel da Vercel (Redirects). Registre o
   domínio usado no campo "Domínio próprio" do site para controle.
 
+## Prospecção por e-mail e rastreio da demo
+
+- **Quem abriu a demo:** toda visita real à demo aparece no CRM (selo "👀 abriu a demo", filtro
+  "Demo" na fila, histórico no detalhe do lead). Robôs de pré-visualização de link, a equipe
+  logada e revisitas em menos de 30 min não contam. Os links da abordagem levam `?c=w`
+  (WhatsApp) ou `?c=e` (e-mail) para mostrar de onde veio a visita.
+- **Raio-X dos e-mails:** `/admin/emails` (ou `npm run emails` no terminal). Mostra quantos leads
+  têm e-mail próprio e quantos usam o e-mail do contador (mesmo e-mail em 3+ CNPJs — ficam fora).
+- **Lote de e-mails:** em `/admin/emails`, baixe o CSV com assunto e mensagem prontos e importe na
+  sua ferramenta de envio (Google Workspace/Zoho com domínio **separado**, aquecido aos poucos).
+  Não envie pelo Resend do sistema. Marcar o lote como "Contatado" evita mandar duas vezes e
+  agenda o retorno em 3 dias.
+- **Contadores (parceiros):** "Baixar lista completa" em `/admin/emails` — escritórios com a
+  carteira de clientes (bairros e segmentos) para propor parceria.
+- **Quem pediu para sair:** botão "Pediu para não ser contatado (LGPD)" no detalhe do lead, ou
+  `/admin/supressao` para e-mails soltos (ex.: quem respondeu SAIR). Sai de tudo na hora.
+- **Domínio dos links:** defina `DEMO_BASE_URL` com um domínio seu apontado para a Vercel —
+  links `*.vercel.app` têm reputação ruim em filtro de spam.
+
 ## Testes
 
 - `npm test` — unitários (classificação de presença web e score).

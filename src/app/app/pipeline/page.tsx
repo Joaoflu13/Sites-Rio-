@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import { endOfTodayBRT, formatPhone, STATUS_LABEL, whatsappUrl } from "@/lib/leads";
+import { timeAgo } from "@/lib/tracking";
 
 const COLUMNS = ["RETORNOS", "CONTATADO", "NEGOCIANDO", "FECHADO", "DESCARTADO"] as const;
 const LABEL: Record<string, string> = { ...STATUS_LABEL, RETORNOS: "Retornos p/ hoje" };
@@ -92,6 +93,11 @@ export default async function PipelinePage({
                   <tr key={p.id}>
                     <td>
                       <Link href={`/app/leads/${b.id}`}>{b.displayName || b.razaoSocial}</Link>
+                      {b.demoLastViewAt && (
+                        <div>
+                          <span className="badge badge--viewed">👀 abriu {timeAgo(b.demoLastViewAt)}</span>
+                        </div>
+                      )}
                     </td>
                     <td>{b.bairro}</td>
                     <td>{b.cnae.label}</td>

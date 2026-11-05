@@ -28,6 +28,7 @@ npm run ingest -- --dir ./data/<AAAA-MM> --ref <AAAA-MM> [--phase A|B] [--limit 
 npm run enrich -- [--max N] [--provider serper|google-cse|fake] [--bairro X] [--group HEALTH]
 npm run rescore            # recalcula scores sem gastar API
 npm run stats              # contagens + tamanho do banco (guardrail 500MB)
+npm run emails             # raio-X dos e-mails da base + CSV de prováveis contadores em data/
 
 # E2E (Playwright): requer build + servidor na 3100 + banco com fixtures:
 #   npm run ingest -- --dir ./data/test --ref test-01 && npm run enrich -- --provider fake --max 10
@@ -55,7 +56,13 @@ Três subsistemas sobre um único Postgres:
    (`/app/leads`, negócios SEM `Prospection`), detalhe com evidências da busca, pipeline por
    status (`/app/pipeline`, com aba "Retornos p/ hoje" por `Prospection.nextFollowUpAt`, data
    guardada ao meio-dia BRT — helpers em `src/lib/leads.ts`). Mensagem de abordagem varia pela
-   presença web (`src/lib/pitch.ts`). `Prospection` é 1-por-Business (`businessId @unique`),
+   presença web (`src/lib/pitch.ts`; `buildEmail` gera o e-mail frio). Visitas à demo: beacon JS
+   (`s/[slug]/DemoBeacon.tsx` → `POST /api/view`) grava `DemoView` + `Business.demoViewCount/
+   demoLastViewAt`; não contam robôs (UA, `src/lib/tracking.ts`), equipe logada nem revisita < 30 min.
+   Links levam `?c=e` (e-mail) / `?c=w` (WhatsApp) e usam `DEMO_BASE_URL` se houver. Fila tem
+   filtro "abriu a demo". Prospecção por e-mail em `/admin/emails` (raio-X, lote CSV via
+   `POST /api/admin/email-queue`, contadores em `/api/admin/contadores`; lógica em
+   `src/lib/emails.ts`). `Prospection` é 1-por-Business (`businessId @unique`),
    compartilhado pela equipe; status NOVO remove a linha (volta pra fila).
 
 3. **Fábrica de sites** (`src/app/s/[slug]/page.tsx`): renderiza o site do estabelecimento
@@ -84,6 +91,12 @@ pooled (6543/pgbouncer), scripts/migrações usam `DIRECT_URL` (5432); `scriptPr
   mostraria. Não armazenar dados de pessoa física.
 - **CSV export** (`/api/admin/export`): UTF-8 com BOM + `;` (Excel-BR) e neutralização de
   fórmula (prefixo `'` quando a célula começa com `=+-@`); manter os dois ao mexer.
+- **Opt-out (LGPD):** `Business.optOutAt` tira o lead da fila (`buildLeadWhere`), dos exports e da
+  demo pública (404 se não publicado); `SuppressedEmail` bloqueia o e-mail em TODOS os CNPJs.
+  Todo novo canal/export de contato precisa respeitar os dois.
+- **E-mail frio:** nunca enviar prospecção pelo Resend (política proíbe e é a conta transacional).
+  O sistema só gera o lote CSV; o envio é numa ferramenta externa com domínio separado. E-mail
+  repetido em 3+ CNPJs = provável contador → fora da fila (vira lista de parceiros).
 - **Custo do enrich:** cada busca custa dinheiro (Serper ~US$1/1k). Nunca re-buscar item já
   carimbado; respeitar a fila por `presenceCheckedAt IS NULL`.
 - **Supabase free:** 500MB e pausa após ~1 semana inativo. `stats.ts` alerta acima de 250 mil

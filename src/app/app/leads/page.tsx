@@ -7,8 +7,10 @@ import {
   phoneKind,
   PRESENCE_LABEL,
   STATUS_LABEL,
+  VIEWED_LABEL,
   whatsappUrl,
 } from "@/lib/leads";
+import { timeAgo } from "@/lib/tracking";
 import { demoSlug } from "@/lib/slug";
 import { setStatusAction } from "./actions";
 
@@ -34,6 +36,7 @@ export default async function LeadsPage({
     presence?: string;
     minScore?: string;
     q?: string;
+    viewed?: string;
     pagina?: string;
   }>;
 }) {
@@ -46,6 +49,7 @@ export default async function LeadsPage({
       presence: sp.presence,
       minScore: Number(sp.minScore) || undefined,
       q: sp.q,
+      viewed: sp.viewed,
     }),
     prospection: null, // fila = ainda sem registro no CRM
   };
@@ -55,7 +59,10 @@ export default async function LeadsPage({
     prisma.business.findMany({
       where,
       include: { cnae: true },
-      orderBy: [{ score: "desc" }, { id: "asc" }],
+      // "abriu a demo": quem abriu por último primeiro (é a hora de ligar)
+      orderBy: sp.viewed
+        ? [{ demoLastViewAt: "desc" }, { id: "asc" }]
+        : [{ score: "desc" }, { id: "asc" }],
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
     }),
@@ -115,6 +122,17 @@ export default async function LeadsPage({
           </select>
         </div>
         <div>
+          <label htmlFor="viewed">Demo</label>
+          <select id="viewed" name="viewed" defaultValue={sp.viewed ?? ""}>
+            <option value="">Todas</option>
+            {Object.entries(VIEWED_LABEL).map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
           <label htmlFor="minScore">Score mín.</label>
           <input
             id="minScore"
@@ -151,6 +169,14 @@ export default async function LeadsPage({
                   <span className={`badge ${BADGE_CLASS[b.presenceClass]}`}>
                     {PRESENCE_LABEL[b.presenceClass]}
                   </span>
+                  {b.demoLastViewAt && (
+                    <>
+                      {" "}
+                      <span className="badge badge--viewed" title={`${b.demoViewCount} visita(s)`}>
+                        👀 abriu a demo {timeAgo(b.demoLastViewAt)}
+                      </span>
+                    </>
+                  )}
                 </div>
                 <Link className="name" href={`/app/leads/${b.id}`}>
                   {b.displayName || b.razaoSocial || "(sem nome)"}

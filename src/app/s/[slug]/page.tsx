@@ -1,38 +1,18 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Clock, MapPin, MessageCircle, Navigation, Phone, Camera, Sparkles } from "lucide-react";
-import { prisma } from "@/lib/db";
-import { demoSlug, slugSuffix } from "@/lib/slug";
+import { resolveBusiness } from "@/lib/sites";
+import { channelFromParam } from "@/lib/tracking";
 import { themeFor, OFFER, photoUrl, siteVariant } from "@/lib/themes";
 import { formatPhone, whatsappUrl } from "@/lib/leads";
 import { bairroDe, bairroEm, bairroPublic } from "@/lib/bairros";
 import { publicCnaeLabel } from "@/lib/cnae";
 import { headingFamily } from "./fonts";
 import { ThemeIconSvg } from "./icons";
+import DemoBeacon from "./DemoBeacon";
 
 // Site público do estabelecimento (demo automática; vira o site "de verdade"
 // quando o admin publica). Montado 100% a partir do banco — custo zero por site.
-
-async function resolveBusiness(slug: string) {
-  // 1) slug personalizado/vendido (linha DemoSite)
-  const demo = await prisma.demoSite.findUnique({
-    where: { slug },
-    include: { business: { include: { cnae: true } } },
-  });
-  if (demo) return { business: demo.business, demo };
-
-  // 2) slug determinístico: sufixo = 6 últimos dígitos do CNPJ
-  const suffix = slugSuffix(slug);
-  if (!suffix) return null;
-  const candidates = await prisma.business.findMany({
-    where: { cnpj: { endsWith: suffix } },
-    include: { cnae: true, demoSite: true },
-    take: 20,
-  });
-  const business = candidates.find((b) => demoSlug(b) === slug);
-  if (!business) return null;
-  return { business, demo: business.demoSite ?? null };
-}
 
 export async function generateMetadata({
   params,
@@ -53,12 +33,21 @@ export async function generateMetadata({
   };
 }
 
-export default async function SitePage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function SitePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ c?: string }>;
+}) {
   const { slug } = await params;
+  const { c } = await searchParams;
   const found = await resolveBusiness(slug);
   if (!found) notFound();
 
   const { business: b, demo } = found;
+  // quem pediu para sair (LGPD) não tem demo pública — só o site já contratado
+  if (b.optOutAt && !demo?.published) notFound();
   const theme = themeFor(b.cnae.group);
   const name = b.displayName || b.razaoSocial || "Estabelecimento";
   const published = demo?.published ?? false;
@@ -271,6 +260,8 @@ export default async function SitePage({ params }: { params: Promise<{ slug: str
           © {new Date().getFullYear()} {name} · {segment} {em}, Rio de Janeiro
         </p>
       </footer>
+
+      <DemoBeacon slug={slug} channel={channelFromParam(c)} />
 
       {waWithMsg && (
         <a className="site-float-wa" href={waWithMsg} aria-label="Conversar no WhatsApp">

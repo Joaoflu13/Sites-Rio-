@@ -14,7 +14,8 @@ import type { Evidence } from "@/lib/classify";
 import { demoSlug } from "@/lib/slug";
 import { buildPitch } from "@/lib/pitch";
 import CopyPitch from "@/components/CopyPitch";
-import { setStatusAction } from "../actions";
+import { CHANNEL_LABEL, demoLink, timeAgo } from "@/lib/tracking";
+import { optOutAction, undoOptOutAction, setStatusAction } from "../actions";
 
 // Detalhe do estabelecimento: contatos, evidências da verificação e CRM.
 export default async function LeadDetailPage({
@@ -25,7 +26,12 @@ export default async function LeadDetailPage({
   const { id } = await params;
   const b = await prisma.business.findUnique({
     where: { id },
-    include: { cnae: true, prospection: { include: { updatedBy: true } }, demoSite: true },
+    include: {
+      cnae: true,
+      prospection: { include: { updatedBy: true } },
+      demoSite: true,
+      demoViews: { orderBy: { at: "desc" }, take: 10 },
+    },
   });
   if (!b) notFound();
 
@@ -35,13 +41,15 @@ export default async function LeadDetailPage({
   const currentStatus = b.prospection?.status ?? "NOVO";
 
   const name = b.displayName || b.razaoSocial || "o estabelecimento";
-  const appUrl = process.env.APP_URL ?? "http://localhost:3000";
-  const demoUrl = `${appUrl}/s/${b.demoSite?.slug ?? demoSlug(b)}`;
+  const slug = b.demoSite?.slug ?? demoSlug(b);
+  const demoUrl = demoLink(slug);
+  const optedOut = Boolean(b.optOutAt);
+  // a mensagem leva o link marcado (?c=w): a visita aparece como "via WhatsApp"
   const pitch = buildPitch({
     name,
     presenceClass: b.presenceClass,
     websiteUrl: b.websiteUrl,
-    demoUrl,
+    demoUrl: demoLink(slug, "w"),
   });
 
   return (
@@ -55,6 +63,22 @@ export default async function LeadDetailPage({
         {PRESENCE_LABEL[b.presenceClass]} · {b.cnae.label} ({groupLabel(b.cnae.group)}) · dados de{" "}
         {b.ingestRef}
       </p>
+
+      {optedOut && (
+        <div className="card" style={{ borderColor: "#fca5a5", background: "#fef2f2", marginBottom: 16 }}>
+          <p style={{ margin: 0 }}>
+            <span className="badge badge--optout">Não contatar</span> Pediu para não receber contato em{" "}
+            {b.optOutAt!.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })} (LGPD). Saiu da fila, dos
+            exports e da demo pública{b.email ? "; o e-mail está na lista de supressão" : ""}.
+          </p>
+          <form action={undoOptOutAction} style={{ marginTop: 10 }}>
+            <input type="hidden" name="businessId" value={b.id} />
+            <button className="btn btn--ghost btn--sm" type="submit">
+              Desfazer (marcado por engano)
+            </button>
+          </form>
+        </div>
+      )}
 
       <div className="leads-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
         <section className="card">
@@ -87,7 +111,7 @@ export default async function LeadDetailPage({
               </>
             )}
           </p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: optedOut ? "none" : "flex", gap: 8, flexWrap: "wrap" }}>
             {wa && (
               <a className="btn btn--sm" href={wa} target="_blank" rel="noopener noreferrer">
                 Chamar no WhatsApp
@@ -168,8 +192,30 @@ export default async function LeadDetailPage({
             <a className="btn btn--ghost btn--sm" href={demoUrl} target="_blank" rel="noopener noreferrer">
               Ver demo ↗
             </a>
-            <CopyPitch text={pitch} />
+            {!optedOut && <CopyPitch text={pitch} />}
           </div>
+
+          <h3 style={{ margin: "18px 0 6px", fontSize: "1rem" }}>Visitas do lead à demo</h3>
+          {b.demoViewCount === 0 ? (
+            <p className="muted" style={{ fontSize: "0.85rem", margin: 0 }}>
+              Ainda não abriu. Visitas da equipe logada e de robôs de pré-visualização não contam.
+            </p>
+          ) : (
+            <>
+              <p style={{ margin: "0 0 6px" }}>
+                <span className="badge badge--viewed">👀 {b.demoViewCount} visita(s)</span> · última{" "}
+                {timeAgo(b.demoLastViewAt!)}
+              </p>
+              <ul style={{ paddingLeft: 18, margin: 0, fontSize: "0.85rem" }}>
+                {b.demoViews.map((v) => (
+                  <li key={v.id}>
+                    {v.at.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}
+                    {v.channel && <span className="muted"> · via {CHANNEL_LABEL[v.channel] ?? v.channel}</span>}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </section>
 
         <section className="card">
@@ -218,6 +264,19 @@ export default async function LeadDetailPage({
               Salvar
             </button>
           </form>
+
+          {!optedOut && (
+            <form action={optOutAction} style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
+              <input type="hidden" name="businessId" value={b.id} />
+              <p className="muted" style={{ fontSize: "0.85rem", margin: "0 0 8px" }}>
+                Respondeu SAIR ou pediu para não ser contatado? Isso tira o lead da fila, dos exports e da
+                demo pública{b.email ? " e bloqueia o e-mail em todos os CNPJs" : ""}.
+              </p>
+              <button className="btn btn--ghost btn--sm" type="submit">
+                Pediu para não ser contatado (LGPD)
+              </button>
+            </form>
+          )}
         </section>
       </div>
     </main>

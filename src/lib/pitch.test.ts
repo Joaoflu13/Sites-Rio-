@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPitch } from "./pitch";
+import { buildEmail, buildPitch } from "./pitch";
 
 const base = { name: "Padaria Estrela", websiteUrl: "", demoUrl: "https://x.app/s/padaria-estrela-000191" };
 
@@ -42,5 +42,33 @@ describe("buildPitch", () => {
 
   it("começa com maiúscula depois do Olá", () => {
     expect(buildPitch({ ...base, presenceClass: "NO_SITE" })).toMatch(/^Olá! F/);
+  });
+});
+
+describe("buildEmail", () => {
+  const e = { ...base, signature: "João — Sites Rio" };
+
+  it("assunto com o nome, link da demo, preço, assinatura e saída LGPD", () => {
+    const m = buildEmail({ ...e, presenceClass: "NO_SITE" });
+    expect(m.subject).toBe("Padaria Estrela: deixei um site pronto para vocês");
+    expect(m.body).toContain(base.demoUrl);
+    expect(m.body).toContain("R$ 497");
+    expect(m.body).toContain("João — Sites Rio");
+    expect(m.body).toContain("responder SAIR");
+    expect(m.body).toContain("cadastro público do CNPJ");
+  });
+
+  it("um único link no corpo (entregabilidade)", () => {
+    const m = buildEmail({ ...e, presenceClass: "SOCIAL_ONLY" });
+    expect(m.body.match(/https?:\/\//g)).toHaveLength(1);
+  });
+
+  it("site do Google fora do ar muda o assunto", () => {
+    const m = buildEmail({
+      ...e,
+      presenceClass: "WEAK_SITE",
+      websiteUrl: "https://padariaestrela.negocio.site/",
+    });
+    expect(m.subject).toContain("saiu do ar");
   });
 });

@@ -117,17 +117,44 @@ model Business {
   websiteUrl        String        @default("")
   socialUrl         String        @default("")
   score             Int           @default(0)
+  // Visitas reais à demo (beacon JS: robôs de pré-visualização e a equipe logada não contam)
+  demoViewCount     Int           @default(0)
+  demoLastViewAt    DateTime?
+  // Pediu para não ser contatado (LGPD): sai da fila e de todos os exports
+  optOutAt          DateTime?
   ingestRef         String // dump de origem, ex "2026-06"
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
   prospection       Prospection?
   demoSite          DemoSite?
+  demoViews         DemoView[]
 
   @@index([presenceClass, score(sort: Desc)]) // query principal do dashboard
   @@index([bairro])
   @@index([cnaeCode])
   @@index([presenceCheckedAt]) // fila do enrichment
   @@index([cnpjBasico]) // fase B do import
+  @@index([demoLastViewAt]) // "abriu a demo" na fila
+}
+
+// Uma visita à demo. channel = de onde veio o link (?c=e e-mail, ?c=w WhatsApp).
+// Visitas do mesmo estabelecimento em menos de 30 min contam uma vez só.
+model DemoView {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  channel    String   @default("") // "email" | "whatsapp" | ""
+  at         DateTime @default(now())
+
+  @@index([businessId, at])
+}
+
+// E-mails que nunca mais recebem contato (respondeu SAIR, pediu remoção),
+// valendo para TODOS os CNPJs que usam o endereço. Sempre lowercase.
+model SuppressedEmail {
+  email     String   @id
+  reason    String   @default("")
+  createdAt DateTime @default(now())
 }
 
 // Registro do CRM de prospecção: no máximo UM por estabelecimento (compartilhado

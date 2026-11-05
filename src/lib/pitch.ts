@@ -60,6 +60,38 @@ export function buildPitch(i: PitchInput): string {
   );
 }
 
+export type EmailPitch = { subject: string; body: string };
+
+/**
+ * E-mail frio de prospecção: texto puro, um único link (a demo), identificação
+ * da origem do contato e saída fácil (LGPD + reputação do domínio de envio).
+ */
+export function buildEmail(i: PitchInput & { signature: string }): EmailPitch {
+  const googleDown = i.presenceClass === "WEAK_SITE" && isGoogleBusinessSite(i.websiteUrl);
+  const subject = googleDown
+    ? `${i.name}: o site de vocês no Google saiu do ar`
+    : `${i.name}: deixei um site pronto para vocês`;
+  const body = [
+    "Olá, tudo bem?",
+    "",
+    `${capitalize(hook(i))}`,
+    "",
+    `Por isso montei uma página de demonstração para vocês, com endereço, horário e botão de WhatsApp: ${i.demoUrl}`,
+    "",
+    `Se gostarem, coloco no ar com endereço próprio por ${OFFER.setup} + ${OFFER.monthly} — eu cuido de tudo, ` +
+      "inclusive das alterações.",
+    "",
+    "Posso mandar os detalhes?",
+    "",
+    i.signature,
+    "",
+    "--",
+    "Encontrei este contato no cadastro público do CNPJ. Se não quiser receber mais mensagens, " +
+      "é só responder SAIR que removo na hora.",
+  ].join("\n");
+  return { subject, body };
+}
+
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }

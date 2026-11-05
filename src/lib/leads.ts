@@ -10,6 +10,13 @@ export type LeadFilters = {
   presence?: string;
   minScore?: number;
   q?: string; // busca por nome
+  /** "7" = abriu a demo nos últimos 7 dias; "any" = já abriu alguma vez */
+  viewed?: string;
+};
+
+export const VIEWED_LABEL: Record<string, string> = {
+  "7": "Abriu nos últimos 7 dias",
+  any: "Já abriu alguma vez",
 };
 
 export const PRESENCE_LABEL: Record<string, string> = {
@@ -41,6 +48,9 @@ export function buildLeadWhere(f: LeadFilters): Prisma.BusinessWhereInput {
   }
   if (f.minScore) where.score = { gte: f.minScore };
   if (f.q) where.displayName = { contains: f.q, mode: "insensitive" };
+  if (f.viewed === "7") where.demoLastViewAt = { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) };
+  else if (f.viewed === "any") where.demoLastViewAt = { not: null };
+  where.optOutAt = null; // pediu para sair: nunca aparece em fila nem export
   return where;
 }
 
