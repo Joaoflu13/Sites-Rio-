@@ -5,6 +5,7 @@ import type { PresenceClass } from "@prisma/client";
 
 const PRESENCE_BASE: Record<PresenceClass, number> = {
   NO_SITE: 45,          // nada na web: lead perfeito
+  WEAK_SITE: 40,        // site grátis/quebrado (ex.: negocio.site desligado) — já quer site
   SOCIAL_ONLY: 35,      // já investe em presença, falta o site
   AGGREGATOR_ONLY: 30,  // paga comissão a terceiros
   UNKNOWN: 15,          // ainda não verificado

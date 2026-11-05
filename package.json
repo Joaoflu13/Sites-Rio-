@@ -15,7 +15,8 @@
     "ingest": "tsx scripts/ingest-rfb.ts",
     "enrich": "tsx scripts/enrich.ts",
     "rescore": "tsx scripts/rescore.ts",
-    "stats": "tsx scripts/stats.ts"
+    "stats": "tsx scripts/stats.ts",
+    "emails": "tsx scripts/emails.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -23,6 +24,7 @@
   "dependencies": {
     "@prisma/client": "^6.2.1",
     "bcryptjs": "^2.4.3",
+    "lucide-react": "1.54.0",
     "next": "^15.1.4",
     "next-auth": "5.0.0-beta.25",
     "react": "^19.0.0",

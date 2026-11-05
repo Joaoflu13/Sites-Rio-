@@ -9,7 +9,7 @@ import Topbar from "@/components/Topbar";
 export default async function AdminPage() {
   await requireAdmin();
 
-  const [total, byClass, byCnae, cats, byStatus, users, runs] = await Promise.all([
+  const [total, byClass, byCnae, cats, byStatus, users, runs, openedDemo] = await Promise.all([
     prisma.business.count(),
     prisma.business.groupBy({ by: ["presenceClass"], _count: true }),
     prisma.business.groupBy({ by: ["cnaeCode"], _count: true }),
@@ -17,6 +17,7 @@ export default async function AdminPage() {
     prisma.prospection.groupBy({ by: ["status"], _count: true }),
     prisma.user.count(),
     prisma.ingestionRun.findMany({ orderBy: { startedAt: "desc" }, take: 5 }),
+    prisma.business.count({ where: { demoLastViewAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } } }),
   ]);
 
   const byGroup = new Map<string, number>();
@@ -48,6 +49,10 @@ export default async function AdminPage() {
           <div className="card tile">
             <div className="num">{countClass("UNKNOWN").toLocaleString("pt-BR")}</div>
             <div className="label">Não verificados</div>
+          </div>
+          <div className="card tile">
+            <div className="num">{openedDemo.toLocaleString("pt-BR")}</div>
+            <div className="label">Abriram a demo (7 dias)</div>
           </div>
           <div className="card tile">
             <div className="num">{users}</div>
@@ -112,6 +117,12 @@ export default async function AdminPage() {
           </Link>
           <Link className="btn btn--ghost" href="/admin/exportar">
             Exportar CSV
+          </Link>
+          <Link className="btn btn--ghost" href="/admin/emails">
+            Prospecção por e-mail
+          </Link>
+          <Link className="btn btn--ghost" href="/admin/supressao">
+            Supressão (LGPD)
           </Link>
           <Link className="btn btn--ghost" href="/admin/usuarios">
             Usuários
