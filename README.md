@@ -55,7 +55,8 @@ npm run dev            # http://localhost:3000
    orçamento da API (Serper: 2.500 buscas grátis, depois ~US$1/1k).
 6. **Acompanhar**: `npm run stats` (contagens + tamanho do banco; alerta acima de 250 mil
    linhas — desligue categorias com `CnaeCategory.enabled=false` e reimporte se precisar).
-7. Mudou pesos/fórmula? `npm run rescore` recalcula sem gastar API.
+7. Mudou pesos/fórmula? `npm run rescore` recalcula sem gastar API (também reclassifica
+   como **Site grátis/fraco** quem tinha "site" em negocio.site, wixsite, blogspot etc.).
 
 ## Deploy (Vercel + Supabase)
 
@@ -83,6 +84,54 @@ npm run dev            # http://localhost:3000
   O domínio abre o app inteiro; oriente o cliente a usar `dominio.com.br/s/<slug>` ou
   configure um redirect de `/` para o slug no painel da Vercel (Redirects). Registre o
   domínio usado no campo "Domínio próprio" do site para controle.
+
+## Prospecção por e-mail e rastreio da demo
+
+- **Quem abriu a demo:** toda visita real à demo aparece no CRM (selo "👀 abriu a demo", filtro
+  "Demo" na fila, histórico no detalhe do lead). Robôs de pré-visualização de link, a equipe
+  logada e revisitas em menos de 30 min não contam. Os links da abordagem levam `?c=w`
+  (WhatsApp) ou `?c=e` (e-mail) para mostrar de onde veio a visita.
+- **Raio-X dos e-mails:** `/admin/emails` (ou `npm run emails` no terminal). Mostra quantos leads
+  têm e-mail próprio e quantos usam o e-mail do contador (mesmo e-mail em 3+ CNPJs — ficam fora).
+- **Lote de e-mails:** em `/admin/emails`, baixe o CSV com assunto e mensagem prontos e importe na
+  sua ferramenta de envio (Google Workspace/Zoho com domínio **separado**, aquecido aos poucos).
+  Não envie pelo Resend do sistema. Marcar o lote como "Contatado" evita mandar duas vezes e
+  agenda o retorno em 3 dias.
+- **Contadores (parceiros):** "Baixar lista completa" em `/admin/emails` — escritórios com a
+  carteira de clientes (bairros e segmentos) para propor parceria.
+- **Quem pediu para sair:** botão "Pediu para não ser contatado (LGPD)" no detalhe do lead, ou
+  `/admin/supressao` para e-mails soltos (ex.: quem respondeu SAIR). Sai de tudo na hora.
+- **Domínio dos links:** defina `DEMO_BASE_URL` com um domínio seu apontado para a Vercel —
+  links `*.vercel.app` têm reputação ruim em filtro de spam.
+
+## Assistente de vendas por e-mail (SDR)
+
+Manda até 3 e-mails por lead (no dia, +3 e +7 dias) se identificando como **assistente virtual**,
+lê as respostas e cuida sozinho só dos casos seguros: **SAIR** (opt-out), e-mail que **voltou**
+(bloqueado) e **férias** (adia). O resto vai para a aba **Respostas**, onde você manda o link da
+agenda com 1 clique ou responde pelo Gmail. Painel: **Admin → Assistente de vendas**.
+
+**Configurar (uma vez):**
+1. **Domínio separado** (ex.: `seunome-contato.com.br`) e **Google Workspace** nele. Nunca use o
+   domínio principal: se a reputação cair, ele fica protegido.
+2. No DNS do domínio, siga o assistente do Workspace: **MX**, **SPF**
+   (`v=spf1 include:_spf.google.com ~all`), **DKIM** (gerado no Admin do Google) e **DMARC**
+   (comece com `v=DMARC1; p=none; rua=mailto:<seu e-mail>`).
+3. **Aqueça a caixa por 2–3 semanas**: troque e-mails reais com conhecidos antes de ligar.
+4. Na conta da caixa: ative a **verificação em duas etapas** e crie uma **senha de app**.
+5. Na Vercel (Settings → Environment Variables): `SDR_EMAIL`, `SDR_APP_PASSWORD`,
+   `SDR_OWNER_NAME` e `CRON_SECRET`; redeploy.
+6. Em **cron-job.org**: job a cada 5 min para `https://<seu-site>/api/cron/sdr` com o cabeçalho
+   `Authorization: Bearer <CRON_SECRET>`.
+7. Crie a página de agendamento (Cal.com ou Google Agenda) e cole o link no painel — vira o botão
+   "Agendar 15 min" nas demos.
+8. No painel: **Enviar teste** para o seu e-mail → confira → **Colocar leads na sequência** →
+   **Ligar assistente**.
+
+**Segurança embutida:** começa desligado; dias úteis das 8h às 18h; aquecimento automático
+(10 → 20 → 30 → máximo/dia); intervalo aleatório entre envios; **pausa sozinho** se mais de 3%
+dos e-mails voltarem; para a sequência quando o lead responde, pede para sair, vai para
+Negociando/Fechado/Descartado no CRM ou entra na supressão.
 
 ## Testes
 
