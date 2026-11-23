@@ -9,20 +9,15 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { csvResponse, toCsv } from "@/lib/csv";
-import { blockedEmailSet, isFreeMail, normalizeEmail, SELLABLE_PRESENCE } from "@/lib/emails";
-import { buildLeadWhere, followUpInputValue, parseFollowUpDate, PRESENCE_LABEL } from "@/lib/leads";
+import { selectEmailBatch } from "@/lib/emails";
+import { followUpInputValue, parseFollowUpDate, PRESENCE_LABEL } from "@/lib/leads";
 import { buildEmail } from "@/lib/pitch";
 import { demoSlug } from "@/lib/slug";
 import { demoLink } from "@/lib/tracking";
 import { bairroPublic } from "@/lib/bairros";
 import { publicCnaeLabel } from "@/lib/cnae";
-import type { PresenceClass, Prisma } from "@prisma/client";
 
 const MAX_BATCH = 500;
-const PAGE = 1000;
-const MAX_SCAN = 30_000;
-
-type Candidate = Prisma.BusinessGetPayload<{ include: { cnae: true; demoSite: true } }>;
 const FOLLOW_UP_DAYS = 3;
 
 export async function POST(req: Request) {
@@ -37,40 +32,16 @@ export async function POST(req: Request) {
   const mark = get("mark") === "on";
   const signature = get("signature") || process.env.SALES_SIGNATURE || "Equipe Sites Rio";
 
-  const where = buildLeadWhere({
-    bairro: get("bairro") || undefined,
-    group: get("group") || undefined,
-    presence: get("presence") || undefined,
-    minScore: Number(get("minScore")) || undefined,
+  const batch = await selectEmailBatch(prisma, {
+    filters: {
+      bairro: get("bairro") || undefined,
+      group: get("group") || undefined,
+      presence: get("presence") || undefined,
+      minScore: Number(get("minScore")) || undefined,
+    },
+    limit,
+    ownDomainOnly,
   });
-  // sem filtro de presença: só as classes vendáveis (quem já tem site fica de fora)
-  if (!where.presenceClass) where.presenceClass = { in: [...SELLABLE_PRESENCE] as PresenceClass[] };
-  where.email = { not: "" };
-  where.prospection = null;
-
-  const blocked = await blockedEmailSet(prisma);
-  const seen = new Set<string>();
-  const batch: { b: Candidate; email: string }[] = [];
-  // pagina pela fila (score desc) até completar o lote: contadores e
-  // duplicados são pulados, então não dá para saber de antemão quantos ler
-  for (let skip = 0; batch.length < limit && skip < MAX_SCAN; skip += PAGE) {
-    const page: Candidate[] = await prisma.business.findMany({
-      where,
-      include: { cnae: true, demoSite: true },
-      orderBy: [{ score: "desc" }, { id: "asc" }],
-      skip,
-      take: PAGE,
-    });
-    for (const b of page) {
-      const email = normalizeEmail(b.email);
-      if (!email || blocked.has(email) || seen.has(email)) continue;
-      if (ownDomainOnly && isFreeMail(email)) continue;
-      seen.add(email);
-      batch.push({ b, email });
-      if (batch.length >= limit) break;
-    }
-    if (page.length < PAGE) break;
-  }
 
   const rows = batch.map(({ b, email }) => {
     const name = b.displayName || b.razaoSocial;

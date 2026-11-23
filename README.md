@@ -104,6 +104,35 @@ npm run dev            # http://localhost:3000
 - **Domínio dos links:** defina `DEMO_BASE_URL` com um domínio seu apontado para a Vercel —
   links `*.vercel.app` têm reputação ruim em filtro de spam.
 
+## Assistente de vendas por e-mail (SDR)
+
+Manda até 3 e-mails por lead (no dia, +3 e +7 dias) se identificando como **assistente virtual**,
+lê as respostas e cuida sozinho só dos casos seguros: **SAIR** (opt-out), e-mail que **voltou**
+(bloqueado) e **férias** (adia). O resto vai para a aba **Respostas**, onde você manda o link da
+agenda com 1 clique ou responde pelo Gmail. Painel: **Admin → Assistente de vendas**.
+
+**Configurar (uma vez):**
+1. **Domínio separado** (ex.: `seunome-contato.com.br`) e **Google Workspace** nele. Nunca use o
+   domínio principal: se a reputação cair, ele fica protegido.
+2. No DNS do domínio, siga o assistente do Workspace: **MX**, **SPF**
+   (`v=spf1 include:_spf.google.com ~all`), **DKIM** (gerado no Admin do Google) e **DMARC**
+   (comece com `v=DMARC1; p=none; rua=mailto:<seu e-mail>`).
+3. **Aqueça a caixa por 2–3 semanas**: troque e-mails reais com conhecidos antes de ligar.
+4. Na conta da caixa: ative a **verificação em duas etapas** e crie uma **senha de app**.
+5. Na Vercel (Settings → Environment Variables): `SDR_EMAIL`, `SDR_APP_PASSWORD`,
+   `SDR_OWNER_NAME` e `CRON_SECRET`; redeploy.
+6. Em **cron-job.org**: job a cada 5 min para `https://<seu-site>/api/cron/sdr` com o cabeçalho
+   `Authorization: Bearer <CRON_SECRET>`.
+7. Crie a página de agendamento (Cal.com ou Google Agenda) e cole o link no painel — vira o botão
+   "Agendar 15 min" nas demos.
+8. No painel: **Enviar teste** para o seu e-mail → confira → **Colocar leads na sequência** →
+   **Ligar assistente**.
+
+**Segurança embutida:** começa desligado; dias úteis das 8h às 18h; aquecimento automático
+(10 → 20 → 30 → máximo/dia); intervalo aleatório entre envios; **pausa sozinho** se mais de 3%
+dos e-mails voltarem; para a sequência quando o lead responde, pede para sair, vai para
+Negociando/Fechado/Descartado no CRM ou entra na supressão.
+
 ## Testes
 
 - `npm test` — unitários (classificação de presença web e score).

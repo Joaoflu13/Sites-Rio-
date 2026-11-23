@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Clock, MapPin, MessageCircle, Navigation, Phone, Camera, Sparkles } from "lucide-react";
+import { prisma } from "@/lib/db";
 import { resolveBusiness } from "@/lib/sites";
+import { sdrOwnerName } from "@/lib/sdr/identity";
 import { channelFromParam } from "@/lib/tracking";
 import { themeFor, OFFER, photoUrl, siteVariant } from "@/lib/themes";
 import { formatPhone, whatsappUrl } from "@/lib/leads";
@@ -74,6 +76,10 @@ export default async function SitePage({
   const about = demo?.about || theme.about({ name, em, de: bairroDe(b.bairro), bairro });
   const hours = demo?.hours || "Seg–Sáb, consulte os horários pelo WhatsApp";
   const cep = b.cep ? b.cep.replace(/(\d{5})(\d{3})/, "$1-$2") : "";
+  // link da agenda do assistente (Admin → Assistente): botão principal da faixa de demo
+  const bookingUrl = published
+    ? ""
+    : ((await prisma.sdrConfig.findUnique({ where: { id: 1 }, select: { bookingUrl: true } }))?.bookingUrl ?? "");
   const salesWa = process.env.SALES_WHATSAPP
     ? `https://wa.me/55${process.env.SALES_WHATSAPP.replace(/\D/g, "")}`
     : null;
@@ -271,7 +277,7 @@ export default async function SitePage({
 
       {/* Faixa de demonstração (some quando o site é publicado/vendido) */}
       {!published && (
-        <div className="site-demo-bar">
+        <div className={`site-demo-bar${bookingUrl ? " site-demo-bar--booking" : ""}`}>
           <Sparkles size={16} aria-hidden />
           <span className="site-demo-bar__long">
             Este site é uma <strong>demonstração</strong> criada para {name}. Ative por{" "}
@@ -280,9 +286,18 @@ export default async function SitePage({
           <span className="site-demo-bar__short">
             Demo · <strong>{OFFER.setup}</strong> + {OFFER.monthly}
           </span>
+          {bookingUrl && (
+            <a href={bookingUrl} target="_blank" rel="noopener noreferrer">
+              <span className="site-demo-bar__long">Agendar 15 min com o {sdrOwnerName()} →</span>
+              <span className="site-demo-bar__short">Agendar conversa</span>
+            </a>
+          )}
           {salesWa ? (
-            <a href={`${salesWa}?text=${encodeURIComponent(`Quero ativar o site ${slug}`)}`}>
-              Quero meu site →
+            <a
+              className={bookingUrl ? "site-demo-bar__secondary" : undefined}
+              href={`${salesWa}?text=${encodeURIComponent(`Quero ativar o site ${slug}`)}`}
+            >
+              {bookingUrl ? "WhatsApp" : "Quero meu site →"}
             </a>
           ) : null}
         </div>

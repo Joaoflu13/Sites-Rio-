@@ -15,7 +15,29 @@ import { demoSlug } from "@/lib/slug";
 import { buildPitch } from "@/lib/pitch";
 import CopyPitch from "@/components/CopyPitch";
 import { CHANNEL_LABEL, demoLink, timeAgo } from "@/lib/tracking";
-import { optOutAction, undoOptOutAction, setStatusAction } from "../actions";
+import { normalizeEmail } from "@/lib/emails";
+import {
+  enrollLeadAction,
+  optOutAction,
+  setStatusAction,
+  stopSequenceAction,
+  undoOptOutAction,
+} from "../actions";
+
+const SEQ_LABEL: Record<string, string> = {
+  ACTIVE: "Na sequência",
+  REPLIED: "Respondeu",
+  FINISHED: "Terminou sem resposta",
+  STOPPED: "Parada",
+  BOUNCED: "E-mail voltou",
+  OPTED_OUT: "Pediu para sair",
+};
+const KIND_LABEL: Record<string, string> = {
+  HUMAN: "resposta",
+  OPT_OUT: "pediu para sair",
+  BOUNCE: "não entregue",
+  AUTO_REPLY: "resposta automática",
+};
 
 // Detalhe do estabelecimento: contatos, evidências da verificação e CRM.
 export default async function LeadDetailPage({
@@ -31,6 +53,7 @@ export default async function LeadDetailPage({
       prospection: { include: { updatedBy: true } },
       demoSite: true,
       demoViews: { orderBy: { at: "desc" }, take: 10 },
+      emailSequence: { include: { messages: { orderBy: { at: "asc" } } } },
     },
   });
   if (!b) notFound();
@@ -274,6 +297,63 @@ export default async function LeadDetailPage({
               </p>
               <button className="btn btn--ghost btn--sm" type="submit">
                 Pediu para não ser contatado (LGPD)
+              </button>
+            </form>
+          )}
+        </section>
+
+        <section className="card">
+          <h2 style={{ marginTop: 0 }}>Assistente de e-mail</h2>
+          {b.emailSequence ? (
+            <>
+              <p style={{ margin: "0 0 8px" }}>
+                <span className="badge badge--status">{SEQ_LABEL[b.emailSequence.status]}</span>{" "}
+                <span className="muted" style={{ fontSize: "0.85rem" }}>
+                  {b.emailSequence.email} · {b.emailSequence.step} de 3 e-mails
+                  {b.emailSequence.status === "ACTIVE" &&
+                    ` · próximo em ${b.emailSequence.nextSendAt.toLocaleString("pt-BR", {
+                      timeZone: "America/Sao_Paulo",
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    })}`}
+                </span>
+              </p>
+              {b.emailSequence.messages.length > 0 && (
+                <ul style={{ paddingLeft: 18, margin: "0 0 8px", fontSize: "0.85rem" }}>
+                  {b.emailSequence.messages.map((m) => (
+                    <li key={m.id}>
+                      {m.at.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}{" "}
+                      {m.direction === "OUT" ? (m.step ? `→ e-mail ${m.step}` : "→ resposta enviada") : `← ${KIND_LABEL[m.kind ?? "HUMAN"]}`}
+                      {m.direction === "IN" && m.body && (
+                        <div className="muted" style={{ whiteSpace: "pre-wrap" }}>
+                          {m.body.slice(0, 300)}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {b.emailSequence.status === "ACTIVE" && (
+                <form action={stopSequenceAction}>
+                  <input type="hidden" name="businessId" value={b.id} />
+                  <button className="btn btn--ghost btn--sm" type="submit">
+                    Parar sequência
+                  </button>
+                </form>
+              )}
+            </>
+          ) : optedOut || !normalizeEmail(b.email) ? (
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              {optedOut ? "Lead pediu para não ser contatado." : "Sem e-mail válido no cadastro."}
+            </p>
+          ) : (
+            <form action={enrollLeadAction}>
+              <input type="hidden" name="businessId" value={b.id} />
+              <p className="muted" style={{ fontSize: "0.85rem", margin: "0 0 8px" }}>
+                O assistente manda até 3 e-mails para {b.email} (D0, D3, D7) e para sozinho se houver resposta.
+              </p>
+              <button className="btn btn--sm" type="submit">
+                Colocar na sequência de e-mail
               </button>
             </form>
           )}

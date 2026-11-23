@@ -62,7 +62,15 @@ Três subsistemas sobre um único Postgres:
    Links levam `?c=e` (e-mail) / `?c=w` (WhatsApp) e usam `DEMO_BASE_URL` se houver. Fila tem
    filtro "abriu a demo". Prospecção por e-mail em `/admin/emails` (raio-X, lote CSV via
    `POST /api/admin/email-queue`, contadores em `/api/admin/contadores`; lógica em
-   `src/lib/emails.ts`). `Prospection` é 1-por-Business (`businessId @unique`),
+   `src/lib/emails.ts`). **Assistente de vendas (SDR)** em `src/lib/sdr/`: sequência D0/D3/D7 por
+   lead (`EmailSequence`, log em `EmailMessage`, config singleton `SdrConfig` — começa desligado),
+   envio SMTP + leitura IMAP do Google Workspace (`mailer.ts`; sem `SDR_EMAIL`/`SDR_APP_PASSWORD`
+   = modo simulação), motor em `run.ts` (1 envio por execução, dias úteis 8–18h BRT, aquecimento
+   10→20→30→máx/dia, intervalo aleatório 4–9 min, pausa sozinho com >3% de não entregues),
+   regras puras em `schedule.ts`/`replies.ts`/`templates.ts`. Respostas: SAIR → `applyOptOut`
+   (`src/lib/optout.ts`), não entregue → supressão, férias → adia 7 dias, resto → aba
+   `/app/respostas` (link da agenda com 1 clique). Agendador externo chama `GET /api/cron/sdr`
+   com `Authorization: Bearer $CRON_SECRET`. Painel em `/admin/sdr`. `Prospection` é 1-por-Business (`businessId @unique`),
    compartilhado pela equipe; status NOVO remove a linha (volta pra fila).
 
 3. **Fábrica de sites** (`src/app/s/[slug]/page.tsx`): renderiza o site do estabelecimento
@@ -95,7 +103,9 @@ pooled (6543/pgbouncer), scripts/migrações usam `DIRECT_URL` (5432); `scriptPr
   demo pública (404 se não publicado); `SuppressedEmail` bloqueia o e-mail em TODOS os CNPJs.
   Todo novo canal/export de contato precisa respeitar os dois.
 - **E-mail frio:** nunca enviar prospecção pelo Resend (política proíbe e é a conta transacional).
-  O sistema só gera o lote CSV; o envio é numa ferramenta externa com domínio separado. E-mail
+  Envio só pelo assistente (caixa do Workspace em domínio separado) ou pelo lote CSV numa
+  ferramenta externa. O assistente se identifica como "assistente virtual" — nunca fingir ser
+  humano; só age sozinho em SAIR/não entregue/férias, o resto passa por uma pessoa. E-mail
   repetido em 3+ CNPJs = provável contador → fora da fila (vira lista de parceiros).
 - **Custo do enrich:** cada busca custa dinheiro (Serper ~US$1/1k). Nunca re-buscar item já
   carimbado; respeitar a fila por `presenceCheckedAt IS NULL`.

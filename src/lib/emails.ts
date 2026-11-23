@@ -4,7 +4,8 @@
 // põe o próprio e-mail): o mesmo endereço aparece em vários CNPJs. Esses saem
 // da fila de e-mail — e viram a lista de escritórios para parceria.
 
-import type { PrismaClient } from "@prisma/client";
+import type { PresenceClass, Prisma, PrismaClient } from "@prisma/client";
+import { buildLeadWhere, type LeadFilters } from "@/lib/leads";
 import { groupLabel } from "@/lib/cnae";
 
 /** Mesmo e-mail em N+ estabelecimentos = provável contador. */
@@ -155,4 +156,51 @@ export async function accountantRows(prisma: PrismaClient): Promise<unknown[][]>
       isFreeMail(s.email) ? "sim" : "não",
     ];
   });
+}
+
+const SCAN_PAGE = 1000;
+const MAX_SCAN = 30_000;
+
+export type BatchLead = Prisma.BusinessGetPayload<{ include: { cnae: true; demoSite: true } }>;
+
+/**
+ * Próximos leads para prospecção por e-mail, maior score primeiro: ainda sem
+ * registro no CRM, sem opt-out, sem sequência do assistente, com e-mail válido
+ * que não é de contador nem da supressão — um lead por e-mail. Sem filtro de
+ * presença, só as classes vendáveis (quem já tem site fica de fora).
+ */
+export async function selectEmailBatch(
+  prisma: PrismaClient,
+  opts: { filters: LeadFilters; limit: number; ownDomainOnly?: boolean }
+): Promise<{ b: BatchLead; email: string }[]> {
+  const where = buildLeadWhere(opts.filters);
+  if (!where.presenceClass) where.presenceClass = { in: [...SELLABLE_PRESENCE] as PresenceClass[] };
+  where.email = { not: "" };
+  where.prospection = null;
+  where.emailSequence = null;
+
+  const blocked = await blockedEmailSet(prisma);
+  const seen = new Set<string>();
+  const batch: { b: BatchLead; email: string }[] = [];
+  // pagina pela fila até completar o lote: contadores e duplicados são pulados,
+  // então não dá para saber de antemão quantos ler
+  for (let skip = 0; batch.length < opts.limit && skip < MAX_SCAN; skip += SCAN_PAGE) {
+    const page: BatchLead[] = await prisma.business.findMany({
+      where,
+      include: { cnae: true, demoSite: true },
+      orderBy: [{ score: "desc" }, { id: "asc" }],
+      skip,
+      take: SCAN_PAGE,
+    });
+    for (const b of page) {
+      const email = normalizeEmail(b.email);
+      if (!email || blocked.has(email) || seen.has(email)) continue;
+      if (opts.ownDomainOnly && isFreeMail(email)) continue;
+      seen.add(email);
+      batch.push({ b, email });
+      if (batch.length >= opts.limit) break;
+    }
+    if (page.length < SCAN_PAGE) break;
+  }
+  return batch;
 }

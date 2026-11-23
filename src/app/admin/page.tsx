@@ -118,6 +118,9 @@ export default async function AdminPage() {
           <Link className="btn btn--ghost" href="/admin/exportar">
             Exportar CSV
           </Link>
+          <Link className="btn" href="/admin/sdr">
+            Assistente de vendas
+          </Link>
           <Link className="btn btn--ghost" href="/admin/emails">
             Prospecção por e-mail
           </Link>

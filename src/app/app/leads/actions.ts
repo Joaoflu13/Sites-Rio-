@@ -5,6 +5,8 @@ import { LeadStatus } from "@prisma/client";
 import { requireUser } from "@/lib/admin";
 import { prisma } from "@/lib/db";
 import { normalizeEmail } from "@/lib/emails";
+import { applyOptOut, optOutNote } from "@/lib/optout";
+import { enrollLeads } from "@/lib/sdr/run";
 import { parseFollowUpDate } from "@/lib/leads";
 
 const VALID_STATUS = new Set(Object.values(LeadStatus));
@@ -52,42 +54,15 @@ export async function setStatusAction(form: FormData) {
 
 /**
  * Lead pediu para não ser contatado (LGPD): carimba o opt-out, bloqueia o
- * e-mail para TODOS os CNPJs que o usam e registra no CRM como descartado.
+ * e-mail para TODOS os CNPJs que o usam, para a sequência do assistente e
+ * registra no CRM como descartado (src/lib/optout.ts).
  */
 export async function optOutAction(form: FormData) {
   const session = await requireUser();
   const businessId = String(form.get("businessId") ?? "");
-  const b = await prisma.business.findUnique({ where: { id: businessId }, include: { prospection: true } });
-  if (!b) return;
-
-  const now = new Date();
-  const note = `Pediu para não ser contatado (LGPD) em ${now.toLocaleDateString("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-  })}.`;
-  const email = normalizeEmail(b.email);
-  await prisma.$transaction([
-    prisma.business.update({ where: { id: b.id }, data: { optOutAt: now } }),
-    ...(email
-      ? [
-          prisma.suppressedEmail.upsert({
-            where: { email },
-            update: {},
-            create: { email, reason: `Opt-out do lead ${b.displayName || b.cnpj}` },
-          }),
-        ]
-      : []),
-    prisma.prospection.upsert({
-      where: { businessId: b.id },
-      update: {
-        status: "DESCARTADO",
-        nextFollowUpAt: null,
-        notes: [b.prospection?.notes, note].filter(Boolean).join("\n"),
-        updatedById: session.user.userId,
-      },
-      create: { businessId: b.id, status: "DESCARTADO", notes: note, updatedById: session.user.userId },
-    }),
-  ]);
-  revalidateLead(b.id);
+  if (!businessId) return;
+  await applyOptOut(prisma, businessId, { userId: session.user.userId, note: optOutNote() });
+  revalidateLead(businessId);
 }
 
 /** Desfaz um opt-out marcado por engano (e tira o e-mail da supressão). */
@@ -108,4 +83,30 @@ function revalidateLead(businessId: string) {
   revalidatePath("/app/leads");
   revalidatePath("/app/pipeline");
   revalidatePath(`/app/leads/${businessId}`);
+}
+
+/** Coloca UM lead na sequência do assistente (se o e-mail puder receber). */
+export async function enrollLeadAction(form: FormData) {
+  const session = await requireUser();
+  const businessId = String(form.get("businessId") ?? "");
+  const b = await prisma.business.findUnique({ where: { id: businessId } });
+  const email = normalizeEmail(b?.email);
+  if (!b || !email || b.optOutAt) return;
+  if (await prisma.suppressedEmail.findUnique({ where: { email } })) return;
+  // negociação em andamento é com gente, não com o assistente
+  const p = await prisma.prospection.findUnique({ where: { businessId } });
+  if (p && p.status !== "CONTATADO") return;
+  await enrollLeads(prisma, [{ businessId: b.id, email }], session.user.userId);
+  revalidateLead(b.id);
+}
+
+/** Para a sequência do assistente para este lead (nada mais é enviado). */
+export async function stopSequenceAction(form: FormData) {
+  await requireUser();
+  const businessId = String(form.get("businessId") ?? "");
+  await prisma.emailSequence.updateMany({
+    where: { businessId, status: "ACTIVE" },
+    data: { status: "STOPPED", endedAt: new Date() },
+  });
+  revalidateLead(businessId);
 }
